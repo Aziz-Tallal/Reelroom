@@ -39,6 +39,14 @@ const MOVIES: Movie[] = [
   { id: "before-sunrise", title: "Before Sunrise", year: 1995, genre: "Romance", runtime: 101, director: "Richard Linklater", synopsis: "Two young travelers meet on a train and spend one unhurried night walking through Vienna, talking about life and possibility.", palette: ["#1f3439", "#d39e60"], platforms: ["Amazon Prime Video", "Google TV", "YouTube Movies"] },
 ];
 
+const HERO_POSTERS = [
+  { movieId: "interstellar", image: "https://upload.wikimedia.org/wikipedia/en/b/bc/Interstellar_film_poster.jpg", source: "https://en.wikipedia.org/wiki/Interstellar_(film)" },
+  { movieId: "dune-part-two", image: "https://upload.wikimedia.org/wikipedia/en/thumb/5/52/Dune_Part_Two_poster.jpeg/500px-Dune_Part_Two_poster.jpeg", source: "https://en.wikipedia.org/wiki/Dune:_Part_Two" },
+  { movieId: "blade-runner-2049", image: "https://upload.wikimedia.org/wikipedia/en/9/9b/Blade_Runner_2049_poster.png", source: "https://en.wikipedia.org/wiki/Blade_Runner_2049" },
+  { movieId: "oppenheimer", image: "https://upload.wikimedia.org/wikipedia/en/thumb/4/4a/Oppenheimer_%28film%29.jpg/500px-Oppenheimer_%28film%29.jpg", source: "https://en.wikipedia.org/wiki/Oppenheimer_(film)" },
+  { movieId: "parasite", image: "https://upload.wikimedia.org/wikipedia/en/thumb/5/53/Parasite_%282019_film%29.png/500px-Parasite_%282019_film%29.png", source: "https://en.wikipedia.org/wiki/Parasite_(2019_film)" },
+] as const;
+
 const FOUR_K_DEMO_TITLES = new Set(["interstellar", "blade-runner-2049", "dune-part-two", "dark-knight", "the-shining", "inception", "2001", "godfather", "the-batman", "oppenheimer"]);
 const PLATFORM_RENT_PRICE: Record<string, number> = { "Apple TV": 2.5, "Amazon Prime Video": 2.9, "Google TV": 2.3, "YouTube Movies": 2.2 };
 const PHYSICAL_PRICE: Record<string, Record<string, number>> = {
@@ -292,6 +300,19 @@ export function Reelroom() {
 
   const renderHome = () => <main>
     <section className="rr-hero">
+      <div className="rr-hero-poster-stage" aria-label="Featured film posters">
+        {HERO_POSTERS.map((poster, index) => {
+          const movie = movieFor(poster.movieId);
+          return <button type="button" key={poster.movieId} className={`rr-hero-poster rr-hero-poster-${index + 1}`} aria-label={`View ${movie.title} details`} onClick={() => openDetails(movie)}>
+            <img src={poster.image} alt={`${movie.title} theatrical poster`} loading={index < 2 ? "eager" : "lazy"}/>
+            <span className="rr-hero-poster-title">{movie.title}</span>
+          </button>;
+        })}
+        <div className="rr-hero-poster-credit">
+          <span>Poster art for identification · sources: </span>
+          {HERO_POSTERS.map((poster, index) => <span key={poster.movieId}>{index > 0 && " · "}<a href={poster.source} target="_blank" rel="noopener noreferrer">{movieFor(poster.movieId).title}</a></span>)}
+        </div>
+      </div>
       <div className="rr-wrap rr-hero-inner">
         <div className="rr-hero-copy">
           <div className="rr-kicker"><span/> A curated cinema archive · Kuwait</div>
