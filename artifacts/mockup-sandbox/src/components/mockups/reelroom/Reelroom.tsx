@@ -10,7 +10,7 @@ import "./Reelroom.css";
 type Movie = {
   id: string; title: string; year: number; genre: string; runtime: number;
   director: string; synopsis: string; palette: [string, string]; platforms: string[];
-  posterExt?: string; sourcePage?: string;
+  posterExt?: string; sourcePage?: string; isCriterion?: boolean;
 };
 type View = "home" | "browse" | "physical" | "digital" | "details" | "watchlist" | "cart" | "checkout" | "library" | "about" | "contact" | "ad";
 type Collection = "All films" | "Digital only" | "Physical only" | "Top 100" | "Academy Award films";
@@ -143,7 +143,7 @@ const CLASSIC_MOVIES: Movie[] = CLASSIC_ROWS.map(([id, title, year, genre, runti
   platforms: [],
   sourcePage: `https://en.wikipedia.org/wiki/${wikiSlug}`,
 }));
-const MOVIES: Movie[] = [...BASE_MOVIES, ...CLASSIC_MOVIES].slice(0, 100);
+const MOVIES: Movie[] = [...BASE_MOVIES, ...CLASSIC_MOVIES];
 
 const ACADEMY_AWARD_IDS = new Set([
   "interstellar", "blade-runner-2049", "dark-knight", "grand-budapest", "dune-part-two",
@@ -210,6 +210,21 @@ const CRITERION_FILMS: CriterionFilm[] = [
   { title: "The White Sheik", poster: "/__mockup/images/reelroom-criterion-the-white-sheik.jpg", source: "https://www.criterion.com/films/374-the-white-sheik" },
   { title: "Wild Strawberries", poster: "/__mockup/images/reelroom-criterion-wild-strawberries.jpg", source: "https://www.criterion.com/films/175-wild-strawberries" },
 ];
+const slugifyCriterionTitle = (title: string) => title.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+const CRITERION_MOVIES: Movie[] = CRITERION_FILMS.map((film, index) => ({
+  id: `criterion-${slugifyCriterionTitle(film.title)}`,
+  title: film.title,
+  year: 0,
+  genre: "Criterion Collection",
+  runtime: 0,
+  director: "Criterion · Janus Films",
+  synopsis: "A title from Criterion’s Essential Art House selection. Choose a disc edition or a digital platform option through the REELROOM cart. Current editions, streaming rights, and availability are not verified.",
+  palette: CLASSIC_PALETTES[index % CLASSIC_PALETTES.length],
+  platforms: ["Apple TV", "Amazon Prime Video", "Google TV", "YouTube Movies"],
+  sourcePage: film.source,
+  isCriterion: true,
+}));
+const STORE_MOVIES: Movie[] = [...MOVIES, ...CRITERION_MOVIES];
 
 const HERO_POSTERS = [
   { movieId: "interstellar", image: "/__mockup/images/reelroom-interstellar.jpg", source: "https://en.wikipedia.org/wiki/Interstellar_(film)" },
@@ -250,7 +265,7 @@ const PHYSICAL_PRICE: Record<string, Record<string, number>> = {
 };
 const STORE_KEY = "reelroom-prototype-v1";
 const money = (n: number) => `${n.toFixed(3)} KWD`;
-const movieFor = (id: string) => MOVIES.find((movie) => movie.id === id) ?? MOVIES[0];
+const movieFor = (id: string) => STORE_MOVIES.find((movie) => movie.id === id) ?? MOVIES[0];
 const readStored = <T,>(key: string, fallback: T): T => {
   try { const raw = localStorage.getItem(key); return raw ? JSON.parse(raw) as T : fallback; } catch { return fallback; }
 };
@@ -526,7 +541,7 @@ function Poster({ movie, onClick, saved, onFavorite }: { movie: Movie; onClick: 
       <Heart size={15} fill={saved ? "currentColor" : "none"} />
     </button>
     <span className="rr-poster-title">{movie.title}</span>
-    <span className="rr-poster-year">{movie.year} · {movie.genre.toUpperCase()}</span>
+    <span className="rr-poster-year">{movie.isCriterion ? "CRITERION COLLECTION" : `${movie.year} · ${movie.genre.toUpperCase()}`}</span>
     <div className="rr-card-actions">
       <button className="rr-card-action" onClick={(event) => { event.stopPropagation(); onClick(); }}>Details <ArrowRight size={12}/></button>
       <button className="rr-card-action" aria-label={`Favorite ${movie.title}`} onClick={(event) => { event.stopPropagation(); onFavorite(); }}><Heart size={13} fill={saved ? "currentColor" : "none"}/></button>
@@ -669,6 +684,7 @@ export function Reelroom() {
   };
   const filteredMovies = useMemo(() => {
     let result = [...MOVIES];
+    if (collection === "Top 100") result = result.slice(0, 100);
     if (view === "digital") result = result.filter((movie) => movie.platforms.length);
     if (collection === "Digital only") result = result.filter((movie) => movie.platforms.length > 0);
     if (collection === "Physical only") result = result.filter((movie) => movie.platforms.length === 0);
@@ -811,17 +827,17 @@ export function Reelroom() {
         <div>
           <span className="rr-eyebrow">The Criterion Collection · Essential Art House</span>
           <h2 className="rr-section-title rr-display" id="rr-criterion-heading">Fifty frames in film history.</h2>
-          <p className="rr-collection-copy">A 50-film selection from Criterion’s Essential Art House: 50 Years of Janus Films box set. An invitation to explore, not an official ranking.</p>
+          <p className="rr-collection-copy">A 50-film selection from Criterion’s Essential Art House: 50 Years of Janus Films box set. Select a poster to choose physical or digital demo options and add it to your REELROOM cart.</p>
         </div>
         <span className="rr-criterion-count"><strong>{CRITERION_FILMS.length}</strong><span>essential films</span></span>
       </div>
       <div className="rr-criterion-rail" role="list" aria-label="50 films from Criterion's Essential Art House collection">
-        {CRITERION_FILMS.map((film, index) => <a className="rr-criterion-card" key={film.title} href={film.source} target="_blank" rel="noopener noreferrer" role="listitem" aria-label={`View ${film.title} at The Criterion Collection`}>
+        {CRITERION_FILMS.map((film, index) => <button type="button" className="rr-criterion-card" key={film.title} onClick={() => openDetails(CRITERION_MOVIES[index])} role="listitem" aria-label={`Choose purchase options for ${film.title}`}>
           <span className="rr-criterion-poster"><img src={film.poster} alt={`${film.title} Criterion Collection artwork`} loading={index < 7 ? "eager" : "lazy"} decoding="async"/></span>
-          <span className="rr-criterion-caption"><span className="rr-criterion-index">{String(index + 1).padStart(2, "0")} / 50</span><span className="rr-criterion-title">{film.title}</span></span>
-        </a>)}
+          <span className="rr-criterion-caption"><span className="rr-criterion-index">{String(index + 1).padStart(2, "0")} / 50</span><span className="rr-criterion-title">{film.title}</span><span className="rr-criterion-buy">Choose format <ArrowRight size={11}/></span></span>
+        </button>)}
       </div>
-      <p className="rr-criterion-credit">Artwork and film details © their respective rights holders. <a href="https://www.criterion.com/boxsets/305-essential-art-house-50-years-of-janus-films" target="_blank" rel="noopener noreferrer">Explore the official Criterion set <ArrowRight size={12}/></a></p>
+      <p className="rr-criterion-credit">Artwork and film details © their respective rights holders. <a href="https://www.criterion.com/boxsets/305-essential-art-house-50-years-of-janus-films" target="_blank" rel="noopener noreferrer">Selection source: Criterion’s Essential Art House set <ArrowRight size={12}/></a><span>Options and prices in REELROOM are illustrative, not verified availability or streaming rights.</span></p>
     </div>
   </section>;
 
@@ -885,8 +901,8 @@ export function Reelroom() {
       </div>
     </section>
     {homeCollectionSection("Digital only", "Platform picks", "Digital only.", "Compare illustrative platform options. The same title may also have a disc edition; availability is not retailer-verified.", MOVIES.filter((movie) => movie.platforms.length > 0))}
-    {homeCollectionSection("Physical only", "The disc shelf", "Physical only.", "Eighty-two classics are listed on disc in this demo. Regional stock and release formats are not verified.", MOVIES.filter((movie) => movie.platforms.length === 0))}
-    {homeCollectionSection("Top 100", "A growing shortlist", "The Top 100.", `Built for 100 films; ${MOVIES.length} titles are on the shelf today.`, MOVIES)}
+    {homeCollectionSection("Physical only", "The disc shelf", "Physical only.", `${MOVIES.filter((movie) => movie.platforms.length === 0).length} titles are listed as physical-only in this demo. Regional stock and release formats are not verified.`, MOVIES.filter((movie) => movie.platforms.length === 0))}
+    {homeCollectionSection("Top 100", "A growing shortlist", "The Top 100.", "A dedicated 100-film shelf within an archive that keeps growing.", MOVIES.slice(0, 100))}
     {homeCollectionSection("Academy Award films", "The gold standard", "Academy Award films.", "A collection of Academy Award-winning pictures, performances, writing, and craft.", MOVIES.filter((movie) => ACADEMY_AWARD_IDS.has(movie.id)))}
     {criterionCollectionSection()}
     <section className="rr-section compact">
@@ -918,8 +934,8 @@ export function Reelroom() {
     const collectionCopy: Record<Collection, string> = {
       "All films": "A considered collection across genres, decades, and the many ways to watch.",
       "Digital only": "Titles with example digital platform options. Digital access and current availability are not verified.",
-      "Physical only": "Eighty-two classic films listed on disc in this demonstration catalog; no digital options are represented here.",
-      "Top 100": `A growing hundred-film collection. ${MOVIES.length} titles are available to browse today.`,
+      "Physical only": `${MOVIES.filter((movie) => movie.platforms.length === 0).length} titles are listed on disc in this demonstration catalog; no digital options are represented here.`,
+      "Top 100": "A dedicated 100-film shelf within an archive that keeps growing.",
       "Academy Award films": "Films with Academy Award wins across picture, performance, writing, and craft.",
     };
     const pageDescription = collection !== "All films" ? collectionCopy[collection] : view === "physical" ? "Find a film for the shelf, the cinema room, or a good old-fashioned movie night. Availability is demonstration data." : view === "digital" ? "Compare example digital options by platform. No viewing rights or third-party purchases are provided here." : view === "watchlist" ? "A personal shortlist of films worth coming back to." : collectionCopy["All films"];
@@ -940,7 +956,7 @@ export function Reelroom() {
           <label className="rr-filter"><span className="rr-filter-label">Experience</span><select className="rr-select" value={modeFilter} onChange={(event) => setModeFilter(event.target.value)}><option>Any mode</option><option>Buy</option><option>Rent</option><option>Physical</option><option>Digital</option></select></label>
           <label className="rr-filter"><span className="rr-filter-label">Starting price</span><select className="rr-select" value={maxPrice} onChange={(event) => setMaxPrice(event.target.value)}><option>Any price</option><option value="2">Under 2 KWD</option><option value="4">Under 4 KWD</option><option value="7">Under 7 KWD</option><option value="10">Under 10 KWD</option></select></label>
         </div>
-        <div className="rr-results-line"><span>{list.length} films · {MOVIES.length} of 100 titles in the catalog</span><button className="rr-text-link" onClick={resetFilters}>Clear filters <RotateCcw size={12}/></button></div>
+        <div className="rr-results-line"><span>{list.length} films shown · {MOVIES.length} in the full archive</span><button className="rr-text-link" onClick={resetFilters}>Clear filters <RotateCcw size={12}/></button></div>
         {movieGrid(list, "six")}
       </>}
        <div style={{ padding: "30px 0 55px" }}>
@@ -960,11 +976,11 @@ export function Reelroom() {
         <div className="rr-detail-poster"><Poster movie={selectedMovie} onClick={() => {}} saved={watchlist.includes(selectedMovie.id)} onFavorite={() => toggleFavorite(selectedMovie.id)}/></div>
         <div className="rr-detail-copy">
           <span className="rr-eyebrow">The REELROOM archive</span><h1>{selectedMovie.title}</h1>
-          <div className="rr-meta-line"><span>{selectedMovie.year}</span><span>{selectedMovie.genre}</span><span>{selectedMovie.runtime} min</span></div>
+           <div className="rr-meta-line">{selectedMovie.isCriterion ? <><span>Criterion Collection</span><span>Physical &amp; digital demo options</span></> : <><span>{selectedMovie.year}</span><span>{selectedMovie.genre}</span><span>{selectedMovie.runtime} min</span></>}</div>
           <p className="rr-synopsis">{selectedMovie.synopsis}</p>
-          <p className="rr-detail-director">DIRECTED BY <strong>{selectedMovie.director}</strong></p>
+           <p className="rr-detail-director">{selectedMovie.isCriterion ? "CURATED COLLECTION" : "DIRECTED BY"} <strong>{selectedMovie.director}</strong></p>
           <div className="rr-divider"/>
-          <div className="rr-demo-note">All availability and prices below are demonstration examples. No real retailer inventory, licensed streaming access, or payments.</div>
+           <div className="rr-demo-note">{selectedMovie.isCriterion ? "Criterion formats, digital platforms, prices, and availability below are illustrative REELROOM options only—not verified stock or streaming rights." : "All availability and prices below are demonstration examples. No real retailer inventory, licensed streaming access, or payments."}</div>
         </div>
         <div className="rr-option-panel">
           <span className="rr-eyebrow">Choose your experience</span><h3>How do you want it?</h3>

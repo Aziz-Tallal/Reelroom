@@ -209,9 +209,14 @@
   display: block;
   flex: 0 0 164px;
   min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
   color: #e7eaec;
+  font: inherit;
+  text-align: left;
   scroll-snap-align: start;
-  text-decoration: none;
+  cursor: pointer;
 }
 
 .reelroom .rr-criterion-card:focus-visible {
@@ -269,14 +274,29 @@
   -webkit-line-clamp: 2;
 }
 
+.reelroom .rr-criterion-buy {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 7px;
+  color: #8bffae;
+  font-family: var(--rr-mono, "Space Mono", monospace);
+  font-size: 8px;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+
 .reelroom .rr-criterion-card:hover .rr-criterion-title {
   color: #fff;
 }
 
+.reelroom .rr-criterion-card:hover .rr-criterion-buy,
+.reelroom .rr-criterion-card:focus-visible .rr-criterion-buy {
+  color: #00e054;
+}
+
 .reelroom .rr-criterion-credit {
-  display: flex;
-  align-items: center;
-  gap: 5px;
+  display: block;
   margin: 13px 0 0;
   color: #7f8b93;
   font-size: 9px;
@@ -290,6 +310,11 @@
   color: #aeb7bc;
   text-decoration-color: rgba(0, 224, 84, .5);
   text-underline-offset: 3px;
+}
+
+.reelroom .rr-criterion-credit > span {
+  display: block;
+  margin-top: 5px;
 }
 
 .reelroom .rr-criterion-credit a:hover {
