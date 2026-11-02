@@ -843,10 +843,10 @@
   }
 }
 
-/* A quiet lime signal keeps interactive controls and film artwork feeling connected. */
+/* A clear lime signal keeps interactive controls and film artwork feeling connected. */
 .reelroom button:not(:disabled):hover,
 .reelroom button:not(:disabled):focus-visible {
-  box-shadow: 0 0 0 1px rgba(0, 224, 84, .18), 0 0 14px rgba(0, 224, 84, .12);
+  box-shadow: 0 0 0 1px rgba(0, 224, 84, .38), 0 0 18px rgba(0, 224, 84, .24), 0 0 30px rgba(0, 224, 84, .12);
 }
 
 .reelroom .rr-movie-card:hover .rr-poster:not(.is-preview-expanded),
@@ -855,5 +855,5 @@
 .reelroom .rr-poster:focus-visible:not(.is-preview-expanded),
 .reelroom .rr-hero-poster:hover,
 .reelroom .rr-hero-poster:focus-visible {
-  box-shadow: 0 0 0 1px rgba(0, 224, 84, .24), 0 0 18px rgba(0, 224, 84, .14);
+  box-shadow: 0 0 0 1.5px rgba(0, 224, 84, .48), 0 0 24px rgba(0, 224, 84, .3), 0 0 42px rgba(0, 224, 84, .16);
 }
