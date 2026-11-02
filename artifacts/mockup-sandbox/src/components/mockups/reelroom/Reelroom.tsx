@@ -10,12 +10,13 @@ import "./Reelroom.css";
 type Movie = {
   id: string; title: string; year: number; genre: string; runtime: number;
   director: string; synopsis: string; palette: [string, string]; platforms: string[];
-  posterExt?: string; posterPath?: string; sourcePage?: string; isCriterion?: boolean;
+  posterExt?: string; posterPath?: string; sourcePage?: string; isCriterion?: boolean; isAnimated?: boolean; artVariation?: number;
 };
 type View = "home" | "browse" | "physical" | "digital" | "details" | "watchlist" | "cart" | "checkout" | "library" | "about" | "contact" | "ad";
-type Collection = "All films" | "Digital only" | "Physical only" | "Top 100" | "Academy Award films";
+type Collection = "All films" | "Digital only" | "Physical only" | "Top 100" | "Academy Award films" | "Animated movies";
 type ClassicSeed = [id: string, title: string, year: number, genre: string, runtime: number, director: string, synopsis: string, wikiSlug: string, posterExt: string];
-const COLLECTIONS: Collection[] = ["All films", "Digital only", "Physical only", "Top 100", "Academy Award films"];
+type AnimatedSeed = [id: string, title: string, year: number, runtime: number, director: string, synopsis: string, palette: [string, string]];
+const COLLECTIONS: Collection[] = ["All films", "Digital only", "Physical only", "Top 100", "Academy Award films", "Animated movies"];
 type CartLine = {
   key: string; movieId: string; experience: "Physical" | "Digital"; mode: "Buy" | "Rent";
   option: string; price: number; quantity: number; rental: string;
@@ -150,6 +151,53 @@ const RECENT_MOVIES: Movie[] = [
   { id: "barbie", title: "Barbie", year: 2023, genre: "Comedy", runtime: 114, director: "Greta Gerwig", synopsis: "A day in the perfect world leads Barbie and Ken into a funny, strange trip through the real one.", palette: ["#e04d83", "#f1c2ad"], platforms: ["Apple TV", "Amazon Prime Video", "Google TV"], sourcePage: "https://en.wikipedia.org/wiki/Barbie_(film)" },
   { id: "poor-things", title: "Poor Things", year: 2023, genre: "Fantasy", runtime: 141, director: "Yorgos Lanthimos", synopsis: "A young woman remade by an unorthodox scientist leaves home to discover the world on her own terms.", palette: ["#28364b", "#d59e74"], platforms: ["Apple TV", "Google TV", "YouTube Movies"], sourcePage: "https://en.wikipedia.org/wiki/Poor_Things_(film)" },
 ];
+const ANIMATED_ROWS: AnimatedSeed[] = [
+  ["toy-story", "Toy Story", 1995, 81, "John Lasseter", "A pull-string cowboy discovers that a new space ranger has become the favorite toy in the room.", ["#275b76", "#f4b64f"]],
+  ["toy-story-2", "Toy Story 2", 1999, 92, "John Lasseter", "A toy collector takes Woody away, sending the toys on a rescue mission and a story about being loved.", ["#34507c", "#e89f53"]],
+  ["toy-story-3", "Toy Story 3", 2010, 103, "Lee Unkrich", "As their owner prepares to leave for college, a close-knit group of toys faces an uncertain next chapter.", ["#39604e", "#e2a565"]],
+  ["toy-story-4", "Toy Story 4", 2019, 100, "Josh Cooley", "A road trip reunites old friends with a handmade toy who is still figuring out where she belongs.", ["#365b75", "#e7b35b"]],
+  ["finding-nemo", "Finding Nemo", 2003, 100, "Andrew Stanton", "A cautious clownfish crosses the ocean to find his son, with help from an optimistic traveler.", ["#087a9a", "#f19a50"]],
+  ["finding-dory", "Finding Dory", 2016, 97, "Andrew Stanton", "A forgetful blue tang follows a fragment of memory toward the family she has been missing.", ["#176c92", "#b6c962"]],
+  ["monsters-inc", "Monsters, Inc.", 2001, 92, "Pete Docter", "Two monster friends discover that a small human child changes everything about their work and their world.", ["#3b7767", "#8fc9c1"]],
+  ["monsters-university", "Monsters University", 2013, 104, "Dan Scanlon", "Two future partners meet at university and learn that teamwork takes more than ambition.", ["#3d6a58", "#e2b64f"]],
+  ["the-incredibles", "The Incredibles", 2004, 115, "Brad Bird", "A retired family of superheroes returns to action when a new threat puts their city at risk.", ["#932d2d", "#e2a34a"]],
+  ["incredibles-2", "Incredibles 2", 2018, 118, "Brad Bird", "The family takes on a new public mission while balancing hero work with everyday life at home.", ["#9c3631", "#f0c05a"]],
+  ["ratatouille", "Ratatouille", 2007, 111, "Brad Bird", "A determined rat with a remarkable sense of taste finds an unlikely path into a Paris kitchen.", ["#6e3530", "#e7a454"]],
+  ["wall-e", "WALL-E", 2008, 98, "Andrew Stanton", "A lone cleanup robot finds a reason to leave Earth when a visitor arrives from the stars.", ["#314b60", "#d99859"]],
+  ["up", "Up", 2009, 96, "Pete Docter", "A widowed balloon salesman and an eager young explorer take an unexpected journey above the clouds.", ["#558eab", "#e6bd5a"]],
+  ["coco", "Coco", 2017, 105, "Lee Unkrich", "A young musician follows a trail of family memories into a brilliantly colored world beyond the living.", ["#8b4a32", "#e8b848"]],
+  ["inside-out", "Inside Out", 2015, 95, "Pete Docter", "A move to a new city turns one girl's inner emotional team into a lively search for balance.", ["#405d9a", "#e9755d"]],
+  ["inside-out-2", "Inside Out 2", 2024, 96, "Kelsey Mann", "As adolescence begins, new emotions arrive and reshape the headquarters inside a teenager's mind.", ["#4b6999", "#e88f72"]],
+  ["zootopia", "Zootopia", 2016, 108, "Byron Howard & Rich Moore", "A determined new officer and a quick-witted fox investigate a mystery across a city of animals.", ["#3c7c72", "#e6b66a"]],
+  ["frozen", "Frozen", 2013, 102, "Chris Buck & Jennifer Lee", "Two sisters search for a way forward when a hidden power covers their kingdom in winter.", ["#477f9b", "#d8edf0"]],
+  ["frozen-ii", "Frozen II", 2019, 103, "Chris Buck", "A mysterious call leads two sisters and their friends beyond the forest that borders their home.", ["#375e63", "#d39c65"]],
+  ["moana", "Moana", 2016, 107, "Ron Clements & John Musker", "A seafaring teenager sets out beyond the reef to restore balance to the islands she calls home.", ["#167e81", "#edb34e"]],
+  ["encanto", "Encanto", 2021, 102, "Jared Bush & Byron Howard", "The one member of a magical family without a gift uncovers a change that reaches them all.", ["#66477f", "#e4b85c"]],
+  ["turning-red", "Turning Red", 2022, 100, "Domee Shi", "A high-achieving teenager's strong feelings bring an unexpected transformation into her daily life.", ["#b33f58", "#efb95d"]],
+  ["luca", "Luca", 2021, 95, "Enrico Casarosa", "Two sea-creature friends spend a summer on the Italian Riviera while keeping a secret from the town.", ["#3c8e96", "#edbe6b"]],
+  ["soul", "Soul", 2020, 100, "Pete Docter", "A music teacher's long-awaited chance takes an unexpected detour through questions of purpose and joy.", ["#253a65", "#7f9fc1"]],
+  ["lion-king-1994", "The Lion King", 1994, 88, "Roger Allers & Rob Minkoff", "A young lion grows into his responsibilities after a loss changes the course of his life.", ["#875035", "#e6b14e"]],
+  ["aladdin-1992", "Aladdin", 1992, 90, "Ron Clements & John Musker", "A streetwise young man enters a palace adventure shaped by a lamp, a wish, and a new friendship.", ["#3d5284", "#e7b951"]],
+  ["little-mermaid-1989", "The Little Mermaid", 1989, 83, "Ron Clements & John Musker", "A curious mermaid dreams of another world and makes a bargain that changes her future.", ["#206d7a", "#df7668"]],
+  ["mulan-1998", "Mulan", 1998, 88, "Tony Bancroft & Barry Cook", "A resourceful young woman takes her father's place in the army and finds courage on her own terms.", ["#833e44", "#d8a052"]],
+  ["beauty-beast-1991", "Beauty and the Beast (1991)", 1991, 84, "Gary Trousdale & Kirk Wise", "A book-loving young woman finds an unexpected connection in an enchanted castle.", ["#513754", "#d4a74e"]],
+  ["princess-frog", "The Princess and the Frog", 2009, 97, "Ron Clements & John Musker", "A hardworking New Orleans dreamer takes a magical detour on the way to opening her restaurant.", ["#385b4e", "#e9b759"]],
+  ["how-to-train-your-dragon", "How to Train Your Dragon", 2010, 98, "Dean DeBlois & Chris Sanders", "A young Viking befriends a dragon and challenges the assumptions that divide their communities.", ["#31576a", "#dca64d"]],
+  ["shrek", "Shrek", 2001, 90, "Andrew Adamson & Vicky Jenson", "A solitary ogre sets out to reclaim his quiet home and finds a surprising traveling companion.", ["#52643b", "#d1ab60"]],
+  ["kung-fu-panda", "Kung Fu Panda", 2008, 92, "Mark Osborne & John Stevenson", "An enthusiastic noodle-shop worker discovers a path into the martial-arts world he admires.", ["#8a4a35", "#e4b34f"]],
+  ["my-neighbor-totoro", "My Neighbor Totoro", 1988, 86, "Hayao Miyazaki", "Two sisters settle into a country home and encounter gentle spirits in the nearby woods.", ["#486b4d", "#a9c67c"]],
+  ["kikis-delivery-service", "Kiki's Delivery Service", 1989, 103, "Hayao Miyazaki", "A young witch starts an independent life in a seaside town with a broom and a new delivery service.", ["#335b79", "#e6ad62"]],
+  ["princess-mononoke", "Princess Mononoke", 1997, 134, "Hayao Miyazaki", "A young traveler enters a conflict between a forest's ancient inhabitants and an expanding settlement.", ["#365c49", "#c77a4b"]],
+  ["howls-moving-castle", "Howl's Moving Castle", 2004, 119, "Hayao Miyazaki", "A young hat-maker's quiet life changes after a spell, a moving home, and an unusual group of companions.", ["#475778", "#d7a45c"]],
+  ["akira", "Akira", 1988, 124, "Katsuhiro Otomo", "In a turbulent future city, a biker gang is pulled into a crisis involving a friend and a secret experiment.", ["#822d34", "#d8814a"]],
+  ["your-name", "Your Name", 2016, 106, "Makoto Shinkai", "Two teenagers in different places wake to a strange connection that reshapes their ordinary routines.", ["#465c88", "#e7ad68"]],
+  ["spider-verse", "Spider-Man: Into the Spider-Verse", 2018, 117, "Bob Persichetti & Rodney Rothman", "A Brooklyn teenager meets other masked heroes and discovers that the role can belong to anyone.", ["#4a427e", "#e76a57"]],
+];
+const ANIMATED_MOVIES: Movie[] = ANIMATED_ROWS.map(([id, title, year, runtime, director, synopsis, palette], index) => ({
+  id, title, year, genre: "Animation", runtime, director, synopsis, palette,
+  platforms: ["Apple TV", "Amazon Prime Video", "Google TV", "YouTube Movies"],
+  isAnimated: true, artVariation: index % 4,
+}));
 const ACADEMY_AWARD_IDS = new Set([
   "interstellar", "blade-runner-2049", "dark-knight", "grand-budapest", "dune-part-two",
   "whiplash", "parasite", "spirited-away", "godfather", "pulp-fiction", "oppenheimer",
@@ -246,14 +294,14 @@ const normalizeFilmTitle = (title: string) => title
   .replace(/[\u0300-\u036f]/g, "")
   .toLowerCase()
   .replace(/[^a-z0-9]/g, "");
-const existingFilmTitles = new Set([...BASE_MOVIES, ...CLASSIC_MOVIES, ...RECENT_MOVIES].map((movie) => normalizeFilmTitle(movie.title)));
+const existingFilmTitles = new Set([...BASE_MOVIES, ...CLASSIC_MOVIES, ...RECENT_MOVIES, ...ANIMATED_MOVIES].map((movie) => normalizeFilmTitle(movie.title)));
 const UNIQUE_CRITERION_MOVIES = CRITERION_MOVIES.filter((movie) => {
   const normalizedTitle = normalizeFilmTitle(movie.title);
   if (existingFilmTitles.has(normalizedTitle)) return false;
   existingFilmTitles.add(normalizedTitle);
   return true;
 });
-const MOVIES: Movie[] = [...BASE_MOVIES, ...CLASSIC_MOVIES, ...RECENT_MOVIES, ...UNIQUE_CRITERION_MOVIES];
+const MOVIES: Movie[] = [...BASE_MOVIES, ...CLASSIC_MOVIES, ...RECENT_MOVIES, ...ANIMATED_MOVIES, ...UNIQUE_CRITERION_MOVIES];
 const CRITERION_SELECTION_TITLES = new Set(CRITERION_FILMS.map((film) => normalizeFilmTitle(film.title)));
 const CRITERION_SELECTION_MOVIES = MOVIES.filter((movie) => CRITERION_SELECTION_TITLES.has(normalizeFilmTitle(movie.title)));
 
@@ -563,8 +611,8 @@ function Logo({ onClick }: { onClick: () => void }) {
 
 function Poster({ movie, onClick, saved, onFavorite }: { movie: Movie; onClick: () => void; saved: boolean; onFavorite: () => void }) {
   return <div className="rr-poster" role="button" tabIndex={0} onClick={onClick} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") onClick(); }} style={{ "--poster-bg": `linear-gradient(148deg, ${movie.palette[0]}, #11181c 78%)`, "--poster-glow": movie.palette[1] } as CSSProperties} aria-label={`View ${movie.title} details`}>
-    <img className="rr-poster-image" src={movie.posterPath ?? `/__mockup/images/reelroom-${movie.id}.${movie.posterExt ?? "jpg"}`} alt={`${movie.title} theatrical poster`} loading="lazy" onError={(event) => event.currentTarget.classList.add("poster-error")}/>
-    <div className="rr-poster-art" />
+    {!movie.isAnimated && <img className="rr-poster-image" src={movie.posterPath ?? `/__mockup/images/reelroom-${movie.id}.${movie.posterExt ?? "jpg"}`} alt={`${movie.title} theatrical poster`} loading="lazy" onError={(event) => event.currentTarget.classList.add("poster-error")}/>}
+    <div className={`rr-poster-art ${movie.isAnimated ? "rr-animated-art" : ""}`} data-variation={movie.artVariation ?? 0} aria-hidden="true"/>
     <span className="rr-poster-mark">REELROOM ARCHIVE</span>
     <button className={`rr-fav ${saved ? "saved" : ""}`} aria-label={saved ? `Remove ${movie.title} from watchlist` : `Add ${movie.title} to watchlist`} onClick={(event) => { event.stopPropagation(); onFavorite(); }}>
       <Heart size={15} fill={saved ? "currentColor" : "none"} />
@@ -849,6 +897,7 @@ export function Reelroom() {
     if (collection === "Digital only") result = result.filter((movie) => movie.platforms.length > 0);
     if (collection === "Physical only") result = result.filter((movie) => movie.platforms.length === 0);
     if (collection === "Academy Award films") result = result.filter((movie) => ACADEMY_AWARD_IDS.has(movie.id));
+    if (collection === "Animated movies") result = result.filter((movie) => movie.genre === "Animation");
     if (genre !== "All genres") result = result.filter((movie) => movie.genre === genre);
     if (decade !== "All decades") {
       const from = Number(decade.slice(0, 4));
@@ -1063,6 +1112,7 @@ export function Reelroom() {
     {homeCollectionSection("Physical only", "The disc shelf", "Physical only.", `${MOVIES.filter((movie) => movie.platforms.length === 0).length} titles are listed as physical-only in this demo. Regional stock and release formats are not verified.`, MOVIES.filter((movie) => movie.platforms.length === 0))}
     {homeCollectionSection("Top 100", "A growing shortlist", "The Top 100.", "A dedicated 100-film shelf within an archive that keeps growing.", MOVIES.slice(0, 100))}
     {homeCollectionSection("Academy Award films", "The gold standard", "Academy Award films.", "A collection of Academy Award-winning pictures, performances, writing, and craft.", MOVIES.filter((movie) => ACADEMY_AWARD_IDS.has(movie.id)))}
+    {homeCollectionSection("Animated movies", "The animation archive", "Animated movies.", `${MOVIES.filter((movie) => movie.genre === "Animation").length} animated films, from hand-drawn landmarks to modern adventures.`, MOVIES.filter((movie) => movie.genre === "Animation"))}
     <section className="rr-section compact">
       <div className="rr-wrap">
         <div className="rr-section-head"><div><span className="rr-eyebrow">Choose your experience</span><h2 className="rr-section-title rr-display">Cinema, your way.</h2></div></div>
@@ -1095,6 +1145,7 @@ export function Reelroom() {
       "Physical only": `${MOVIES.filter((movie) => movie.platforms.length === 0).length} titles are listed on disc in this demonstration catalog; no digital options are represented here.`,
       "Top 100": "A dedicated 100-film shelf within an archive that keeps growing.",
       "Academy Award films": "Films with Academy Award wins across picture, performance, writing, and craft.",
+      "Animated movies": `${MOVIES.filter((movie) => movie.genre === "Animation").length} animated films across studios, eras, and styles.`,
     };
     const pageDescription = collection !== "All films" ? collectionCopy[collection] : view === "physical" ? "Find a film for the shelf, the cinema room, or a good old-fashioned movie night. Availability is demonstration data." : view === "digital" ? "Compare example digital options by platform. No viewing rights or third-party purchases are provided here." : view === "watchlist" ? "A personal shortlist of films worth coming back to." : collectionCopy["All films"];
     return <main className="rr-wrap">
