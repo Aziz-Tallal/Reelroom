@@ -8,7 +8,7 @@ import "./_group.css";
 import "./Reelroom.css";
 
 type Movie = {
-  id: string; title: string; year: number; genre: string; runtime: number;
+  id: string; title: string; year: number; genre: string; genres?: string[]; runtime: number;
   director: string; synopsis: string; palette: [string, string]; platforms: string[];
   posterExt?: string; posterPath?: string; sourcePage?: string; isCriterion?: boolean; isAnimated?: boolean; artVariation?: number;
 };
@@ -193,8 +193,94 @@ const ANIMATED_ROWS: AnimatedSeed[] = [
   ["your-name", "Your Name", 2016, 106, "Makoto Shinkai", "Two teenagers in different places wake to a strange connection that reshapes their ordinary routines.", ["#465c88", "#e7ad68"]],
   ["spider-verse", "Spider-Man: Into the Spider-Verse", 2018, 117, "Bob Persichetti & Rodney Rothman", "A Brooklyn teenager meets other masked heroes and discovers that the role can belong to anyone.", ["#4a427e", "#e76a57"]],
 ];
+const ANIMATED_POSTER_META: Record<string, [string, "jpg" | "png"]> = {
+  "toy-story": ["Toy_Story", "jpg"],
+  "toy-story-2": ["Toy_Story_2", "jpg"],
+  "toy-story-3": ["Toy_Story_3", "jpg"],
+  "toy-story-4": ["Toy_Story_4", "jpg"],
+  "finding-nemo": ["Finding_Nemo", "jpg"],
+  "finding-dory": ["Finding_Dory", "jpg"],
+  "monsters-inc": ["Monsters,_Inc.", "jpg"],
+  "monsters-university": ["Monsters_University", "jpg"],
+  "the-incredibles": ["The_Incredibles", "jpg"],
+  "incredibles-2": ["Incredibles_2", "jpg"],
+  ratatouille: ["Ratatouille_(film)", "jpg"],
+  "wall-e": ["WALL-E", "jpg"],
+  up: ["Up_(2009_film)", "jpg"],
+  coco: ["Coco_(2017_film)", "jpg"],
+  "inside-out": ["Inside_Out_(2015_film)", "jpg"],
+  "inside-out-2": ["Inside_Out_2", "jpg"],
+  zootopia: ["Zootopia", "jpg"],
+  frozen: ["Frozen_(2013_film)", "jpg"],
+  "frozen-ii": ["Frozen_II", "jpg"],
+  moana: ["Moana_(2016_film)", "jpg"],
+  encanto: ["Encanto_(film)", "jpg"],
+  "turning-red": ["Turning_Red", "jpg"],
+  luca: ["Luca_(2021_film)", "png"],
+  soul: ["Soul_(2020_film)", "jpg"],
+  "lion-king-1994": ["The_Lion_King", "jpg"],
+  "aladdin-1992": ["Aladdin_(1992_Disney_film)", "jpg"],
+  "little-mermaid-1989": ["The_Little_Mermaid_(1989_film)", "png"],
+  "mulan-1998": ["Mulan_(1998_film)", "jpg"],
+  "beauty-beast-1991": ["Beauty_and_the_Beast_(1991_film)", "jpg"],
+  "princess-frog": ["The_Princess_and_the_Frog", "jpg"],
+  "how-to-train-your-dragon": ["How_to_Train_Your_Dragon_(2010_film)", "jpg"],
+  shrek: ["Shrek_(film)", "jpg"],
+  "kung-fu-panda": ["Kung_Fu_Panda_(film)", "jpg"],
+  "my-neighbor-totoro": ["My_Neighbor_Totoro", "jpg"],
+  "kikis-delivery-service": ["Kiki's_Delivery_Service", "jpg"],
+  "princess-mononoke": ["Princess_Mononoke", "png"],
+  "howls-moving-castle": ["Howl's_Moving_Castle_(film)", "jpg"],
+  akira: ["Akira_(1988_film)", "jpg"],
+  "your-name": ["Your_Name", "png"],
+  "spider-verse": ["Spider-Man:_Into_the_Spider-Verse", "png"],
+};
+const ANIMATED_GENRES: Record<string, string[]> = {
+  "toy-story": ["Animation", "Adventure", "Comedy", "Family", "Fantasy"],
+  "toy-story-2": ["Animation", "Adventure", "Comedy", "Family"],
+  "toy-story-3": ["Animation", "Adventure", "Comedy", "Drama", "Family"],
+  "toy-story-4": ["Animation", "Adventure", "Comedy", "Family"],
+  "finding-nemo": ["Animation", "Adventure", "Comedy", "Family"],
+  "finding-dory": ["Animation", "Adventure", "Comedy", "Family"],
+  "monsters-inc": ["Animation", "Adventure", "Comedy", "Family", "Fantasy"],
+  "monsters-university": ["Animation", "Comedy", "Family"],
+  "the-incredibles": ["Animation", "Action", "Adventure", "Family", "Sci-Fi"],
+  "incredibles-2": ["Animation", "Action", "Adventure", "Family", "Sci-Fi"],
+  ratatouille: ["Animation", "Comedy", "Drama", "Family"],
+  "wall-e": ["Animation", "Adventure", "Romance", "Sci-Fi"],
+  up: ["Animation", "Adventure", "Comedy", "Drama", "Family"],
+  coco: ["Animation", "Adventure", "Family", "Fantasy", "Musical"],
+  "inside-out": ["Animation", "Adventure", "Comedy", "Drama", "Family"],
+  "inside-out-2": ["Animation", "Adventure", "Comedy", "Family", "Fantasy"],
+  zootopia: ["Animation", "Adventure", "Comedy", "Crime", "Mystery"],
+  frozen: ["Animation", "Adventure", "Comedy", "Fantasy", "Musical"],
+  "frozen-ii": ["Animation", "Adventure", "Fantasy", "Musical"],
+  moana: ["Animation", "Adventure", "Family", "Fantasy", "Musical"],
+  encanto: ["Animation", "Comedy", "Family", "Fantasy", "Musical"],
+  "turning-red": ["Animation", "Comedy", "Drama", "Family", "Fantasy"],
+  luca: ["Animation", "Adventure", "Comedy", "Family", "Fantasy"],
+  soul: ["Animation", "Adventure", "Comedy", "Drama", "Fantasy"],
+  "lion-king-1994": ["Animation", "Adventure", "Drama", "Family", "Musical"],
+  "aladdin-1992": ["Animation", "Adventure", "Comedy", "Fantasy", "Musical"],
+  "little-mermaid-1989": ["Animation", "Adventure", "Family", "Fantasy", "Musical"],
+  "mulan-1998": ["Animation", "Action", "Adventure", "Drama", "Family"],
+  "beauty-beast-1991": ["Animation", "Family", "Fantasy", "Musical", "Romance"],
+  "princess-frog": ["Animation", "Adventure", "Family", "Fantasy", "Musical"],
+  "how-to-train-your-dragon": ["Animation", "Action", "Adventure", "Family", "Fantasy"],
+  shrek: ["Animation", "Adventure", "Comedy", "Family", "Fantasy"],
+  "kung-fu-panda": ["Animation", "Action", "Adventure", "Comedy", "Family"],
+  "my-neighbor-totoro": ["Animation", "Adventure", "Family", "Fantasy"],
+  "kikis-delivery-service": ["Animation", "Adventure", "Family", "Fantasy"],
+  "princess-mononoke": ["Animation", "Action", "Adventure", "Drama", "Fantasy"],
+  "howls-moving-castle": ["Animation", "Adventure", "Fantasy", "Romance"],
+  akira: ["Animation", "Action", "Drama", "Sci-Fi"],
+  "your-name": ["Animation", "Drama", "Fantasy", "Romance"],
+  "spider-verse": ["Animation", "Action", "Adventure", "Sci-Fi"],
+};
 const ANIMATED_MOVIES: Movie[] = ANIMATED_ROWS.map(([id, title, year, runtime, director, synopsis, palette], index) => ({
-  id, title, year, genre: "Animation", runtime, director, synopsis, palette,
+  id, title, year, genre: "Animation", genres: ANIMATED_GENRES[id], runtime, director, synopsis, palette,
+  posterPath: `/__mockup/images/reelroom-animation-${id}.${ANIMATED_POSTER_META[id][1]}`,
+  sourcePage: `https://en.wikipedia.org/wiki/${ANIMATED_POSTER_META[id][0]}`,
   platforms: ["Apple TV", "Amazon Prime Video", "Google TV", "YouTube Movies"],
   isAnimated: true, artVariation: index % 4,
 }));
@@ -210,6 +296,9 @@ const ACADEMY_AWARD_IDS = new Set([
   "rebecca", "philadelphia-story", "treasure-sierra-madre", "sunset-boulevard",
   "high-noon", "on-waterfront", "godfather-part-ii", "jaws", "alien", "amadeus",
   "anora", "the-brutalist", "poor-things",
+  "finding-nemo", "the-incredibles", "ratatouille", "wall-e", "up", "toy-story-3", "shrek",
+  "frozen", "inside-out", "zootopia", "coco", "spider-verse", "toy-story-4", "soul", "encanto",
+  "lion-king-1994", "aladdin-1992", "beauty-beast-1991",
 ]);
 
 const CRITERION_FILMS: CriterionFilm[] = [
@@ -302,6 +391,7 @@ const UNIQUE_CRITERION_MOVIES = CRITERION_MOVIES.filter((movie) => {
   return true;
 });
 const MOVIES: Movie[] = [...BASE_MOVIES, ...CLASSIC_MOVIES, ...RECENT_MOVIES, ...ANIMATED_MOVIES, ...UNIQUE_CRITERION_MOVIES];
+const isAnimatedFilm = (movie: Movie) => movie.isAnimated === true || movie.genre === "Animation" || movie.genres?.includes("Animation") === true;
 const CRITERION_SELECTION_TITLES = new Set(CRITERION_FILMS.map((film) => normalizeFilmTitle(film.title)));
 const CRITERION_SELECTION_MOVIES = MOVIES.filter((movie) => CRITERION_SELECTION_TITLES.has(normalizeFilmTitle(movie.title)));
 
@@ -334,6 +424,7 @@ const POSTER_SOURCES: Record<string, string> = {
   "before-sunrise": "https://en.wikipedia.org/wiki/Before_Sunrise",
   ...Object.fromEntries(CLASSIC_MOVIES.map((movie) => [movie.id, movie.sourcePage ?? "https://en.wikipedia.org/wiki/Film"])),
   ...Object.fromEntries(RECENT_MOVIES.map((movie) => [movie.id, movie.sourcePage ?? "https://en.wikipedia.org/wiki/Film"])),
+  ...Object.fromEntries(ANIMATED_MOVIES.map((movie) => [movie.id, movie.sourcePage ?? "https://en.wikipedia.org/wiki/Animation"])),
   ...Object.fromEntries(UNIQUE_CRITERION_MOVIES.map((movie) => [movie.id, movie.sourcePage ?? "https://www.criterion.com/"])),
   "sound-of-music": "https://commons.wikimedia.org/wiki/File:Sound_of_music.jpg",
 };
@@ -611,7 +702,7 @@ function Logo({ onClick }: { onClick: () => void }) {
 
 function Poster({ movie, onClick, saved, onFavorite }: { movie: Movie; onClick: () => void; saved: boolean; onFavorite: () => void }) {
   return <div className="rr-poster" role="button" tabIndex={0} onClick={onClick} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") onClick(); }} style={{ "--poster-bg": `linear-gradient(148deg, ${movie.palette[0]}, #11181c 78%)`, "--poster-glow": movie.palette[1] } as CSSProperties} aria-label={`View ${movie.title} details`}>
-    {!movie.isAnimated && <img className="rr-poster-image" src={movie.posterPath ?? `/__mockup/images/reelroom-${movie.id}.${movie.posterExt ?? "jpg"}`} alt={`${movie.title} theatrical poster`} loading="lazy" onError={(event) => event.currentTarget.classList.add("poster-error")}/>}
+    <img className="rr-poster-image" src={movie.posterPath ?? `/__mockup/images/reelroom-${movie.id}.${movie.posterExt ?? "jpg"}`} alt={`${movie.title} theatrical poster`} loading="lazy" onError={(event) => { event.currentTarget.classList.add("poster-error"); if (movie.isAnimated) event.currentTarget.nextElementSibling?.classList.add("poster-fallback-visible"); }}/>
     <div className={`rr-poster-art ${movie.isAnimated ? "rr-animated-art" : ""}`} data-variation={movie.artVariation ?? 0} aria-hidden="true"/>
     <span className="rr-poster-mark">REELROOM ARCHIVE</span>
     <button className={`rr-fav ${saved ? "saved" : ""}`} aria-label={saved ? `Remove ${movie.title} from watchlist` : `Add ${movie.title} to watchlist`} onClick={(event) => { event.stopPropagation(); onFavorite(); }}>
@@ -804,7 +895,7 @@ export function Reelroom() {
   const selectedMovie = movieFor(selectedMovieId);
   const cartCount = cart.reduce((sum, item) => sum + item.quantity, 0);
   const cartTotal = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
-  const genres = useMemo(() => ["All genres", ...Array.from(new Set(MOVIES.map((movie) => movie.genre))).sort()], []);
+  const genres = useMemo(() => ["All genres", ...Array.from(new Set(MOVIES.flatMap((movie) => movie.genres ?? [movie.genre]))).sort()], []);
   const catalogPrice = (movie: Movie) => {
     const digital = view === "digital" || modeFilter === "Digital";
     const renting = modeFilter === "Rent";
@@ -897,15 +988,15 @@ export function Reelroom() {
     if (collection === "Digital only") result = result.filter((movie) => movie.platforms.length > 0);
     if (collection === "Physical only") result = result.filter((movie) => movie.platforms.length === 0);
     if (collection === "Academy Award films") result = result.filter((movie) => ACADEMY_AWARD_IDS.has(movie.id));
-    if (collection === "Animated movies") result = result.filter((movie) => movie.genre === "Animation");
-    if (genre !== "All genres") result = result.filter((movie) => movie.genre === genre);
+    if (collection === "Animated movies") result = result.filter(isAnimatedFilm);
+    if (genre !== "All genres") result = result.filter((movie) => (movie.genres ?? [movie.genre]).includes(genre));
     if (decade !== "All decades") {
       const from = Number(decade.slice(0, 4));
       result = result.filter((movie) => movie.year >= from && movie.year < from + 10);
     }
     if (search.trim()) {
       const term = search.trim().toLowerCase();
-      result = result.filter((movie) => `${movie.title} ${movie.genre} ${movie.director} ${movie.year}`.toLowerCase().includes(term));
+      result = result.filter((movie) => `${movie.title} ${movie.genre} ${movie.genres?.join(" ") ?? ""} ${movie.director} ${movie.year}`.toLowerCase().includes(term));
     }
     if (format !== "Any format") result = result.filter((movie) => {
       if (format === "Digital") return movie.platforms.length > 0;
@@ -1026,7 +1117,7 @@ export function Reelroom() {
     ariaLabel={ariaLabel}
     renderMovie={(movie) => <MovieCard movie={movie} saved={watchlist.includes(movie.id)} onDetails={() => openDetails(movie)} onFavorite={() => toggleFavorite(movie.id)}/>}
   /> : movieGrid(items, columns);
-  const homeCollectionSection = (name: Collection, eyebrow: string, title: string, copy: string, films: Movie[]) => <section className="rr-section rr-home-collection" key={name}>
+  const homeCollectionSection = (name: Collection, eyebrow: string, title: string, copy: string, films: Movie[]) => <section className="rr-section rr-home-collection" key={name} id={name === "Animated movies" ? "animation-archive" : undefined}>
     <div className="rr-wrap">
       <div className="rr-section-head">
         <div><span className="rr-eyebrow">{eyebrow}</span><h2 className="rr-section-title rr-display">{title}</h2><p className="rr-collection-copy">{copy}</p></div>
@@ -1112,7 +1203,7 @@ export function Reelroom() {
     {homeCollectionSection("Physical only", "The disc shelf", "Physical only.", `${MOVIES.filter((movie) => movie.platforms.length === 0).length} titles are listed as physical-only in this demo. Regional stock and release formats are not verified.`, MOVIES.filter((movie) => movie.platforms.length === 0))}
     {homeCollectionSection("Top 100", "A growing shortlist", "The Top 100.", "A dedicated 100-film shelf within an archive that keeps growing.", MOVIES.slice(0, 100))}
     {homeCollectionSection("Academy Award films", "The gold standard", "Academy Award films.", "A collection of Academy Award-winning pictures, performances, writing, and craft.", MOVIES.filter((movie) => ACADEMY_AWARD_IDS.has(movie.id)))}
-    {homeCollectionSection("Animated movies", "The animation archive", "Animated movies.", `${MOVIES.filter((movie) => movie.genre === "Animation").length} animated films, from hand-drawn landmarks to modern adventures.`, MOVIES.filter((movie) => movie.genre === "Animation"))}
+    {homeCollectionSection("Animated movies", "The animation archive", "Animated movies.", `${MOVIES.filter(isAnimatedFilm).length} animated films, from hand-drawn landmarks to modern adventures.`, MOVIES.filter(isAnimatedFilm))}
     <section className="rr-section compact">
       <div className="rr-wrap">
         <div className="rr-section-head"><div><span className="rr-eyebrow">Choose your experience</span><h2 className="rr-section-title rr-display">Cinema, your way.</h2></div></div>
@@ -1145,7 +1236,7 @@ export function Reelroom() {
       "Physical only": `${MOVIES.filter((movie) => movie.platforms.length === 0).length} titles are listed on disc in this demonstration catalog; no digital options are represented here.`,
       "Top 100": "A dedicated 100-film shelf within an archive that keeps growing.",
       "Academy Award films": "Films with Academy Award wins across picture, performance, writing, and craft.",
-      "Animated movies": `${MOVIES.filter((movie) => movie.genre === "Animation").length} animated films across studios, eras, and styles.`,
+      "Animated movies": `${MOVIES.filter(isAnimatedFilm).length} animated films across studios, eras, and styles.`,
     };
     const pageDescription = collection !== "All films" ? collectionCopy[collection] : view === "physical" ? "Find a film for the shelf, the cinema room, or a good old-fashioned movie night. Availability is demonstration data." : view === "digital" ? "Compare example digital options by platform. No viewing rights or third-party purchases are provided here." : view === "watchlist" ? "A personal shortlist of films worth coming back to." : collectionCopy["All films"];
     return <main className="rr-wrap">
@@ -1188,6 +1279,7 @@ export function Reelroom() {
            <div className="rr-meta-line">{selectedMovie.isCriterion ? <><span>Criterion Collection</span><span>Physical &amp; digital demo options</span></> : <><span>{selectedMovie.year}</span><span>{selectedMovie.genre}</span><span>{selectedMovie.runtime} min</span></>}</div>
           <p className="rr-synopsis">{selectedMovie.synopsis}</p>
            <p className="rr-detail-director">{selectedMovie.isCriterion ? "CURATED COLLECTION" : "DIRECTED BY"} <strong>{selectedMovie.director}</strong></p>
+          {selectedMovie.isAnimated && selectedMovie.sourcePage && <a className="rr-poster-source" href={selectedMovie.sourcePage} target="_blank" rel="noreferrer">Poster reference · Wikipedia</a>}
           <div className="rr-divider"/>
            <div className="rr-demo-note">{selectedMovie.isCriterion ? "Criterion formats, digital platforms, prices, and availability below are illustrative REELROOM options only—not verified stock or streaming rights." : "All availability and prices below are demonstration examples. No real retailer inventory, licensed streaming access, or payments."}</div>
         </div>

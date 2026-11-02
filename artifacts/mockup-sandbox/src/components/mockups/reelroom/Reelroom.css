@@ -29,6 +29,27 @@
   display: none;
 }
 
+.reelroom .rr-poster-art.rr-animated-art.poster-fallback-visible {
+  display: block;
+}
+
+.reelroom .rr-poster-source {
+  display: inline-flex;
+  margin: 2px 0 12px;
+  color: #c9ae82;
+  font-size: 10px;
+  letter-spacing: .12em;
+  text-decoration: none;
+  text-transform: uppercase;
+  border-bottom: 1px solid rgba(201, 174, 130, .38);
+  transition: color .2s ease, border-color .2s ease;
+}
+
+.reelroom .rr-poster-source:hover {
+  color: #f2d5a2;
+  border-color: currentColor;
+}
+
 .reelroom .rr-poster::after {
   content: "";
   position: absolute;
@@ -46,7 +67,7 @@
   position: absolute;
   z-index: 0;
   inset: 0;
-  display: block;
+  display: none;
   overflow: hidden;
   background:
     radial-gradient(ellipse at 50% 82%, var(--poster-glow), transparent 55%),
