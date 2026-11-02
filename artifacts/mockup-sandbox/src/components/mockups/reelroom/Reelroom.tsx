@@ -1019,6 +1019,7 @@ export function Reelroom() {
   const [watchlist, setWatchlist] = useState<string[]>(() => readStored("reelroom-watchlist", []));
   const [cart, setCart] = useState<CartLine[]>(() => readStored("reelroom-cart", []));
   const [orders, setOrders] = useState<DemoOrder[]>(() => readStored("reelroom-orders", []));
+  const [libraryFilter, setLibraryFilter] = useState<"All" | "Physical" | "Digital">("All");
   const [toast, setToast] = useState("");
   const [mobileOpen, setMobileOpen] = useState(false);
   const [search, setSearch] = useState("");
@@ -1525,10 +1526,49 @@ export function Reelroom() {
     </main>;
   };
 
-  const renderLibrary = () => <main className="rr-wrap">
-    <div className="rr-page-head"><span className="rr-eyebrow">Your REELROOM shelf</span><h1>My library & orders</h1><p>Your saved demonstration orders, rentals, and preferences live here on this device.</p></div>
-    <section className="rr-section compact">{orders.length === 0 ? <div className="rr-empty"><Clapperboard size={28}/><h2>Your library is waiting for its first reel.</h2><p>Place a demo order and your movie-night history will appear here.</p><button className="rr-button" onClick={() => navigate("browse")}>Browse movies <ArrowRight size={14}/></button></div> : <div className="rr-order-list">{orders.map((order) => <article className="rr-cart-aside" key={order.id} style={{ marginBottom: 14 }}><div style={{ display: "flex", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}><div><span className="rr-eyebrow">{order.id}</span><h3 style={{ marginTop: 8 }}>{order.date} · {order.customer}</h3></div><strong className="rr-price">{money(order.total)}</strong></div><div className="rr-divider"/>{order.items.map((item) => <div className="rr-order-row" key={item.key}><span>{movieFor(item.movieId).title} · {item.experience} {item.mode} · {item.option}<br/><small>{item.mode === "Rent" ? item.rental : item.experience === "Physical" ? `${order.fulfillment} · demo` : "Digital preference · no access granted"}</small></span><strong>{money(item.price * item.quantity)}</strong></div>)}</article>)}</div>}</section>
-  </main>;
+  const renderLibrary = () => {
+    const libraryItems = orders.flatMap((order) => order.items.map((item) => ({ order, item, movie: movieFor(item.movieId) })));
+    const visibleLibraryItems = libraryItems.filter(({ item }) => libraryFilter === "All" || item.experience === libraryFilter);
+    const physicalCount = libraryItems.filter(({ item }) => item.experience === "Physical").length;
+    const digitalCount = libraryItems.filter(({ item }) => item.experience === "Digital").length;
+    return <main className="rr-wrap rr-library-page">
+      <div className="rr-page-head"><span className="rr-eyebrow">Your REELROOM shelf</span><h1>My library.</h1><p>A personal record of the films you’ve brought home, on disc or on your screen.</p></div>
+      {libraryItems.length === 0
+        ? <section className="rr-section compact"><div className="rr-library-empty">
+          <div className="rr-library-empty-mark"><Clapperboard size={25}/><span>01</span></div>
+          <div><span className="rr-eyebrow">A shelf of your own</span><h2>Your library is waiting for its first reel.</h2><p>Place a demo order and each film will find its place here, with its poster, format, and order details.</p><button className="rr-button" onClick={() => navigate("browse")}>Browse movies <ArrowRight size={14}/></button></div>
+        </div></section>
+        : <section className="rr-section compact">
+          <div className="rr-library-overview">
+            <div className="rr-library-overview-copy"><span className="rr-eyebrow">The home collection</span><h2>{libraryItems.length.toString().padStart(2, "0")} <span>films on your shelf</span></h2><p>Saved from your REELROOM demo orders · always ready for another look.</p></div>
+            <div className="rr-library-counts"><div><span>{physicalCount.toString().padStart(2, "0")}</span><small>Physical</small></div><i/><div><span>{digitalCount.toString().padStart(2, "0")}</span><small>Digital</small></div></div>
+          </div>
+          <div className="rr-library-toolbar">
+            <div><span className="rr-eyebrow">Your films</span><h2>Collected & kept.</h2></div>
+            <div className="rr-library-filters" role="group" aria-label="Filter library by media type">
+              {(["All", "Physical", "Digital"] as const).map((filter) => <button key={filter} type="button" className={libraryFilter === filter ? "active" : ""} aria-pressed={libraryFilter === filter} onClick={() => setLibraryFilter(filter)}>{filter}<span>{filter === "All" ? libraryItems.length : filter === "Physical" ? physicalCount : digitalCount}</span></button>)}
+            </div>
+          </div>
+          {visibleLibraryItems.length === 0
+            ? <div className="rr-library-filter-empty"><span className="rr-eyebrow">No {libraryFilter.toLowerCase()} films yet</span><p>Choose another shelf, or explore the archive for your next addition.</p><button className="rr-text-link" onClick={() => setLibraryFilter("All")}>Show all films <ArrowRight size={13}/></button></div>
+            : <div className="rr-library-grid">{visibleLibraryItems.map(({ order, item, movie }) => <button className="rr-library-card" type="button" key={item.key} onClick={() => openDetails(movie)} aria-label={`View ${movie.title}, ${item.experience} ${item.option}`}>
+              <span className="rr-library-poster">
+                <img src={movie.posterPath ?? `/__mockup/images/reelroom-${movie.id}.${movie.posterExt ?? "jpg"}`} alt={`${movie.title} poster`} loading="lazy" onError={(event) => event.currentTarget.classList.add("poster-error")}/>
+                <span className={`rr-library-media ${item.experience.toLowerCase()}`}>{item.experience === "Physical" ? <Clapperboard size={12}/> : <Play size={11}/>} {item.experience}</span>
+                <span className="rr-library-poster-title">{movie.title}</span>
+              </span>
+              <span className="rr-library-card-copy">
+                <span className={`rr-library-state ${item.mode === "Rent" ? "rental" : "owned"}`}>{item.mode === "Rent" ? "On loan" : "In collection"}</span>
+                <strong>{movie.title}</strong>
+                <span className="rr-library-film-meta">{movie.year} <i/> {movie.genre}</span>
+                <span className="rr-library-format"><span>{item.experience === "Physical" ? item.option : "Digital"}</span><span>{item.experience === "Digital" ? item.option : item.mode === "Rent" ? "Rental" : order.fulfillment}</span></span>
+                <span className="rr-library-order-meta"><span>{item.mode === "Rent" ? item.rental : `Added ${order.date}`}</span>{item.quantity > 1 && <b>×{item.quantity}</b>}</span>
+              </span>
+            </button>)}</div>}
+          <div className="rr-library-foot"><span>DEMO COLLECTION · MEDIA ACCESS IS NOT INCLUDED</span><button className="rr-text-link" onClick={() => navigate("browse")}>Find another film <ArrowRight size={13}/></button></div>
+        </section>}
+    </main>;
+  };
 
   const renderAbout = () => <main className="rr-wrap">
     <div className="rr-page-head"><span className="rr-eyebrow">A note from the projection booth</span><h1>One film. Every way to watch it.</h1><p>REELROOM is a curated cinema archive for people who care about what they watch—and how they keep it.</p></div>
