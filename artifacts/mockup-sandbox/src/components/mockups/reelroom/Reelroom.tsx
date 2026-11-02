@@ -10,9 +10,9 @@ import "./Reelroom.css";
 type Movie = {
   id: string; title: string; year: number; genre: string; runtime: number;
   director: string; synopsis: string; palette: [string, string]; platforms: string[];
-  posterExt?: string; sourcePage?: string; isCriterion?: boolean;
+  posterExt?: string; posterPath?: string; sourcePage?: string; isCriterion?: boolean;
 };
-type View = "home" | "browse" | "physical" | "digital" | "details" | "watchlist" | "cart" | "checkout" | "library" | "about" | "contact" | "ad";
+type View = "home" | "browse" | "physical" | "digital" | "criterion" | "details" | "watchlist" | "cart" | "checkout" | "library" | "about" | "contact" | "ad";
 type Collection = "All films" | "Digital only" | "Physical only" | "Top 100" | "Academy Award films";
 type ClassicSeed = [id: string, title: string, year: number, genre: string, runtime: number, director: string, synopsis: string, wikiSlug: string, posterExt: string];
 const COLLECTIONS: Collection[] = ["All films", "Digital only", "Physical only", "Top 100", "Academy Award films"];
@@ -232,6 +232,7 @@ const slugifyCriterionTitle = (title: string) => title.normalize("NFD").replace(
 const CRITERION_MOVIES: Movie[] = CRITERION_FILMS.map((film, index) => ({
   id: `criterion-${slugifyCriterionTitle(film.title)}`,
   title: film.title,
+  posterPath: film.poster,
   year: 0,
   genre: "Criterion Collection",
   runtime: 0,
@@ -553,7 +554,7 @@ function Logo({ onClick }: { onClick: () => void }) {
 
 function Poster({ movie, onClick, saved, onFavorite }: { movie: Movie; onClick: () => void; saved: boolean; onFavorite: () => void }) {
   return <div className="rr-poster" role="button" tabIndex={0} onClick={onClick} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") onClick(); }} style={{ "--poster-bg": `linear-gradient(148deg, ${movie.palette[0]}, #11181c 78%)`, "--poster-glow": movie.palette[1] } as CSSProperties} aria-label={`View ${movie.title} details`}>
-    <img className="rr-poster-image" src={`/__mockup/images/reelroom-${movie.id}.${movie.posterExt ?? "jpg"}`} alt={`${movie.title} theatrical poster`} loading="lazy" onError={(event) => event.currentTarget.classList.add("poster-error")}/>
+    <img className="rr-poster-image" src={movie.posterPath ?? `/__mockup/images/reelroom-${movie.id}.${movie.posterExt ?? "jpg"}`} alt={`${movie.title} theatrical poster`} loading="lazy" onError={(event) => event.currentTarget.classList.add("poster-error")}/>
     <div className="rr-poster-art" />
     <span className="rr-poster-mark">REELROOM ARCHIVE</span>
     <button className={`rr-fav ${saved ? "saved" : ""}`} aria-label={saved ? `Remove ${movie.title} from watchlist` : `Add ${movie.title} to watchlist`} onClick={(event) => { event.stopPropagation(); onFavorite(); }}>
@@ -575,7 +576,7 @@ function MovieCard({ movie, onDetails, saved, onFavorite }: { movie: Movie; onDe
     <Poster movie={movie} onClick={onDetails} saved={saved} onFavorite={onFavorite}/>
     <div className="rr-movie-info">
       <h3 className="rr-movie-title">{movie.title}</h3>
-      <div className="rr-movie-sub">{movie.year} <span aria-hidden="true">·</span> {movie.genre} <span aria-hidden="true">·</span> {movie.runtime} min</div>
+      <div className="rr-movie-sub">{movie.isCriterion ? "Criterion Collection · Physical & digital" : <>{movie.year} <span aria-hidden="true">·</span> {movie.genre} <span aria-hidden="true">·</span> {movie.runtime} min</>}</div>
       <div className="rr-movie-bottom"><span className="rr-price">From {money(base)} <small>demo</small></span><span className="rr-tags">{availability}{ACADEMY_AWARD_IDS.has(movie.id) ? " · Academy award" : ""}</span></div>
     </div>
   </article>;
@@ -840,25 +841,33 @@ export function Reelroom() {
     </div>
   </section>;
 
-  const criterionCollectionSection = () => <section className="rr-section rr-criterion-section" id="criterion" aria-labelledby="rr-criterion-heading">
+  const criterionCollectionSection = () => <section className="rr-section rr-home-collection" id="criterion" aria-labelledby="rr-criterion-heading">
     <div className="rr-wrap">
-      <div className="rr-criterion-heading">
+      <div className="rr-section-head">
         <div>
-        <span className="rr-eyebrow">The Criterion Collection · Essential Art House &amp; more</span>
-        <h2 className="rr-section-title rr-display" id="rr-criterion-heading">Beyond the essentials.</h2>
-        <p className="rr-collection-copy">The original Essential Art House: 50 Years of Janus Films selection, joined by ten more Criterion editions. Choose any poster for REELROOM physical or digital demo options.</p>
+          <span className="rr-eyebrow">The Criterion Collection · Essential Art House</span>
+          <h2 className="rr-section-title rr-display" id="rr-criterion-heading">Beyond the essentials.</h2>
+          <p className="rr-collection-copy">A four-film preview from a collection of {CRITERION_FILMS.length}. Choose a title for REELROOM physical or digital options.</p>
         </div>
-      <span className="rr-criterion-count"><strong>{CRITERION_FILMS.length}</strong><span>Criterion films</span></span>
+        <button className="rr-text-link" onClick={() => navigate("criterion")}>Explore collection <ArrowRight size={14}/></button>
       </div>
-    <div className="rr-criterion-rail" role="list" aria-label={`${CRITERION_FILMS.length} Criterion Collection films`}>
-        {CRITERION_FILMS.map((film, index) => <button type="button" className="rr-criterion-card" key={film.title} onClick={() => openDetails(CRITERION_MOVIES[index])} role="listitem" aria-label={`Choose purchase options for ${film.title}`}>
-          <span className="rr-criterion-poster"><img src={film.poster} alt={`${film.title} Criterion Collection artwork`} loading={index < 7 ? "eager" : "lazy"} decoding="async"/></span>
-        <span className="rr-criterion-caption"><span className="rr-criterion-index">{String(index + 1).padStart(2, "0")} / {CRITERION_FILMS.length}</span><span className="rr-criterion-title">{film.title}</span><span className="rr-criterion-buy">Choose format <ArrowRight size={11}/></span></span>
-        </button>)}
-      </div>
-      <p className="rr-criterion-credit">Artwork and film details © their respective rights holders. <a href="https://www.criterion.com/boxsets/305-essential-art-house-50-years-of-janus-films" target="_blank" rel="noopener noreferrer">Selection source: Criterion’s Essential Art House set <ArrowRight size={12}/></a><span>Options and prices in REELROOM are illustrative, not verified availability or streaming rights.</span></p>
+      {movieGrid(CRITERION_MOVIES.slice(0, 4), "four")}
     </div>
   </section>;
+
+  const renderCriterionCollection = () => <main className="rr-wrap">
+    <div className="rr-page-head">
+      <span className="rr-eyebrow">Curated editions · Criterion Collection</span>
+      <h1>Beyond the essentials.</h1>
+      <p>Explore all {CRITERION_MOVIES.length} Criterion selections. Open any film to choose a physical disc or a digital demo option through REELROOM.</p>
+    </div>
+    <div className="rr-results-line">
+      <span>{CRITERION_MOVIES.length} Criterion films</span>
+      <button className="rr-text-link" onClick={() => navigate("home")}><ArrowLeft size={13}/> Back to home</button>
+    </div>
+    {movieGrid(CRITERION_MOVIES, "four")}
+    <p className="rr-criterion-credit">Artwork and film details © their respective rights holders. <a href="https://www.criterion.com/boxsets/305-essential-art-house-50-years-of-janus-films" target="_blank" rel="noopener noreferrer">Selection source: Criterion’s Essential Art House set <ArrowRight size={12}/></a><span>Options and prices in REELROOM are illustrative, not verified availability or streaming rights.</span></p>
+  </main>;
 
   const handleHeroPointerMove = (event: ReactPointerEvent<HTMLElement>) => {
     if (event.pointerType !== "mouse" && event.pointerType !== "pen") return;
@@ -1040,7 +1049,7 @@ export function Reelroom() {
           <div>{cart.map((item) => {
             const movie = movieFor(item.movieId);
             return <div className="rr-cart-item" key={item.key}>
-              <div className="rr-poster" style={{ "--poster-bg": `linear-gradient(148deg,${movie.palette[0]},#11181c 78%)`, "--poster-glow": movie.palette[1] } as CSSProperties}><img className="rr-poster-image" src={`/__mockup/images/reelroom-${movie.id}.${movie.posterExt ?? "jpg"}`} alt={`${movie.title} theatrical poster`} loading="lazy"/><div className="rr-poster-art"/><span className="rr-poster-title">{movie.title}</span></div>
+              <div className="rr-poster" style={{ "--poster-bg": `linear-gradient(148deg,${movie.palette[0]},#11181c 78%)`, "--poster-glow": movie.palette[1] } as CSSProperties}><img className="rr-poster-image" src={movie.posterPath ?? `/__mockup/images/reelroom-${movie.id}.${movie.posterExt ?? "jpg"}`} alt={`${movie.title} theatrical poster`} loading="lazy"/><div className="rr-poster-art"/><span className="rr-poster-title">{movie.title}</span></div>
               <div><h3 className="rr-cart-name">{movie.title}</h3><p className="rr-cart-desc">{item.experience} · {item.mode} · {item.option}</p><p className="rr-cart-desc">{item.rental}</p>{item.experience === "Physical" && item.mode === "Buy" && <div className="rr-quantity" style={{ marginTop: 8 }}><button aria-label={`Decrease ${movie.title} quantity`} onClick={() => updateQuantity(item.key, item.quantity - 1)}><Minus size={12}/></button><span>{item.quantity}</span><button aria-label={`Increase ${movie.title} quantity`} onClick={() => updateQuantity(item.key, item.quantity + 1)}><Plus size={12}/></button></div>}</div>
               <strong className="rr-price rr-cart-price">{money(item.price * item.quantity)}</strong>
               <button className="rr-icon-btn" aria-label={`Remove ${movie.title}`} onClick={() => removeCartItem(item.key)}><Trash2 size={16}/></button>
@@ -1115,6 +1124,7 @@ export function Reelroom() {
   </div><div className="rr-footer-bottom"><span>© 2025 REELROOM · Every Film. Your Way.</span><span>Original cinema, considered carefully.</span></div></div></footer>;
 
   const content = view === "home" ? renderHome()
+    : view === "criterion" ? renderCriterionCollection()
     : view === "browse" || view === "physical" || view === "digital" || view === "watchlist" ? renderCatalog()
     : view === "details" ? renderDetails()
     : view === "cart" ? renderCart()
