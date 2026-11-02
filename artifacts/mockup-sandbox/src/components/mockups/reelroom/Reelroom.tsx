@@ -603,11 +603,14 @@ function RotatingMovieShelf({ items, ariaLabel, columns = "four", renderMovie }:
   const [visibleCount, setVisibleCount] = useState(columns === "six" ? 6 : 4);
   const [paused, setPaused] = useState(false);
   const [sliding, setSliding] = useState(false);
+  const [preparingPrevious, setPreparingPrevious] = useState(false);
+  const [slideDirection, setSlideDirection] = useState<1 | -1>(1);
   const [snapping, setSnapping] = useState(false);
   const [reducedMotion, setReducedMotion] = useState(false);
   const total = items.length;
   const currentOffset = total ? offset % total : 0;
   const shouldRotate = total > visibleCount && step > 0 && !reducedMotion;
+  const canNavigate = total > visibleCount && step > 0;
 
   useEffect(() => {
     const viewport = viewportRef.current;
@@ -640,20 +643,47 @@ function RotatingMovieShelf({ items, ariaLabel, columns = "four", renderMovie }:
   }, []);
 
   useEffect(() => {
-    if (paused || !shouldRotate || sliding) return;
-    const timer = window.setTimeout(() => setSliding(true), 30000);
+    if (paused || !shouldRotate || sliding || preparingPrevious) return;
+    const timer = window.setTimeout(() => {
+      setSlideDirection(1);
+      setSliding(true);
+    }, 30000);
     return () => window.clearTimeout(timer);
-  }, [currentOffset, paused, shouldRotate, sliding]);
+  }, [currentOffset, paused, preparingPrevious, shouldRotate, sliding]);
+
+  const moveShelf = (direction: 1 | -1) => {
+    if (!canNavigate || sliding || preparingPrevious) return;
+    if (reducedMotion || step <= 0) {
+      setOffset((current) => (current + direction + total) % total);
+      return;
+    }
+
+    setSlideDirection(direction);
+    if (direction === -1) {
+      setSnapping(true);
+      setPreparingPrevious(true);
+      window.requestAnimationFrame(() => window.requestAnimationFrame(() => {
+        setSnapping(false);
+        setPreparingPrevious(false);
+        setSliding(true);
+      }));
+      return;
+    }
+    setSliding(true);
+  };
 
   const visibleItems = useMemo(() => {
     if (!total) return [];
-    const count = Math.min(total, visibleCount + (shouldRotate ? 1 : 0));
-    return Array.from({ length: count }, (_, index) => items[(currentOffset + index) % total]);
-  }, [currentOffset, items, shouldRotate, total, visibleCount]);
+    const movingForward = sliding && slideDirection === 1;
+    const movingBackward = (sliding || preparingPrevious) && slideDirection === -1;
+    const count = Math.min(total, visibleCount + (movingForward || movingBackward ? 1 : 0));
+    const start = movingBackward ? (currentOffset - 1 + total) % total : currentOffset;
+    return Array.from({ length: count }, (_, index) => items[(start + index) % total]);
+  }, [currentOffset, items, preparingPrevious, slideDirection, sliding, total, visibleCount]);
 
   const finishSlide = (event: ReactTransitionEvent<HTMLDivElement>) => {
-    if (event.target !== event.currentTarget || event.propertyName !== "transform" || !sliding) return;
-    setOffset((current) => (current + 1) % total);
+    if (event.target !== event.currentTarget || event.propertyName !== "transform" || !sliding || !total) return;
+    setOffset((current) => (current + slideDirection + total) % total);
     setSliding(false);
     setSnapping(true);
     window.requestAnimationFrame(() => window.requestAnimationFrame(() => setSnapping(false)));
@@ -673,9 +703,17 @@ function RotatingMovieShelf({ items, ariaLabel, columns = "four", renderMovie }:
     }}
     style={{ "--rr-shelf-step": `${step}px` } as CSSProperties}
   >
+    {canNavigate && <div className="rr-shelf-controls" role="group" aria-label={`Scroll ${ariaLabel}`}>
+      <button className="rr-shelf-arrow" type="button" aria-label={`Previous ${ariaLabel}`} disabled={sliding || preparingPrevious} onClick={() => moveShelf(-1)}>
+        <ArrowLeft size={17}/>
+      </button>
+      <button className="rr-shelf-arrow" type="button" aria-label={`Next ${ariaLabel}`} disabled={sliding || preparingPrevious} onClick={() => moveShelf(1)}>
+        <ArrowRight size={17}/>
+      </button>
+    </div>}
     <div
       className={`rr-shelf-track ${snapping ? "snapping" : ""}`}
-      style={{ transform: `translate3d(${sliding && shouldRotate ? -step : 0}px, 0, 0)` }}
+      style={{ transform: `translate3d(${preparingPrevious || (sliding && slideDirection === 1) ? -step : 0}px, 0, 0)` }}
       onTransitionEnd={finishSlide}
       aria-live="off"
     >

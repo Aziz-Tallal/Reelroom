@@ -167,6 +167,7 @@
   --rr-shelf-columns: 4;
   --rr-shelf-gap: 18px;
   --rr-shelf-card-size: calc((100% - 54px) / 4);
+  position: relative;
   width: 100%;
   overflow: hidden;
 }
@@ -183,6 +184,17 @@
     --rr-shelf-gap: 14px;
     --rr-shelf-card-size: calc((100% - 14px) / 2);
   }
+
+  .reelroom .rr-shelf-controls {
+    top: 96px;
+    right: 5px;
+    left: 5px;
+  }
+
+  .reelroom .rr-shelf-arrow {
+    width: 34px;
+    height: 34px;
+  }
 }
 
 .reelroom .rr-shelf-track {
@@ -197,6 +209,51 @@
 
 .reelroom .rr-shelf-track.snapping {
   transition: none;
+}
+
+.reelroom .rr-shelf-controls {
+  position: absolute;
+  z-index: 3;
+  top: clamp(88px, 10vw, 150px);
+  right: 8px;
+  left: 8px;
+  display: flex;
+  justify-content: space-between;
+  pointer-events: none;
+}
+
+.reelroom .rr-shelf-arrow {
+  display: inline-grid;
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  place-items: center;
+  border: 1px solid rgba(239, 244, 246, .24);
+  border-radius: 50%;
+  background: rgba(12, 18, 21, .84);
+  color: #e9edef;
+  box-shadow: 0 5px 18px rgba(0, 0, 0, .3);
+  cursor: pointer;
+  pointer-events: auto;
+  transition: background .18s ease, border-color .18s ease, color .18s ease, transform .18s ease;
+  backdrop-filter: blur(8px);
+}
+
+.reelroom .rr-shelf-arrow:hover:not(:disabled) {
+  transform: scale(1.06);
+  border-color: rgba(0, 224, 84, .7);
+  background: rgba(0, 224, 84, .16);
+  color: #8bffae;
+}
+
+.reelroom .rr-shelf-arrow:focus-visible {
+  outline: 2px solid #00e054;
+  outline-offset: 3px;
+}
+
+.reelroom .rr-shelf-arrow:disabled {
+  cursor: wait;
+  opacity: .65;
 }
 
 .reelroom .rr-shelf-slide {
