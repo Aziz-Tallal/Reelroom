@@ -22,6 +22,7 @@ type CartLine = {
 };
 type DemoOrder = { id: string; date: string; customer: string; total: number; items: CartLine[]; fulfillment: string };
 type CheckoutData = { name: string; email: string; phone: string; fulfillment: string; address: string; note: string };
+type CriterionFilm = { title: string; poster: string; source: string };
 
 const BASE_MOVIES: Movie[] = [
   { id: "interstellar", title: "Interstellar", year: 2014, genre: "Sci-Fi", runtime: 169, director: "Christopher Nolan", synopsis: "With Earth nearing the edge of habitability, a team of explorers travels beyond this galaxy to discover whether mankind has a future among the stars.", palette: ["#101f27", "#9ba97f"], platforms: ["Apple TV", "Amazon Prime Video", "Google TV"] },
@@ -156,6 +157,59 @@ const ACADEMY_AWARD_IDS = new Set([
   "rebecca", "philadelphia-story", "treasure-sierra-madre", "sunset-boulevard",
   "high-noon", "on-waterfront", "godfather-part-ii", "jaws", "alien", "amadeus",
 ]);
+
+const CRITERION_FILMS: CriterionFilm[] = [
+  { title: "The 39 Steps", poster: "/__mockup/images/reelroom-criterion-the-39-steps.jpg", source: "https://www.criterion.com/films/234-the-39-steps" },
+  { title: "The 400 Blows", poster: "/__mockup/images/reelroom-criterion-the-400-blows.jpg", source: "https://www.criterion.com/films/151-the-400-blows" },
+  { title: "Alexander Nevsky", poster: "/__mockup/images/reelroom-criterion-alexander-nevsky.jpg", source: "https://www.criterion.com/films/341-alexander-nevsky" },
+  { title: "Ashes and Diamonds", poster: "/__mockup/images/reelroom-criterion-ashes-and-diamonds.jpg", source: "https://www.criterion.com/films/342-ashes-and-diamonds" },
+  { title: "Ballad of a Soldier", poster: "/__mockup/images/reelroom-criterion-ballad-of-a-soldier.jpg", source: "https://www.criterion.com/films/343-ballad-of-a-soldier" },
+  { title: "Beauty and the Beast", poster: "/__mockup/images/reelroom-criterion-beauty-and-the-beast.jpg", source: "https://www.criterion.com/films/177-beauty-and-the-beast" },
+  { title: "Black Orpheus", poster: "/__mockup/images/reelroom-criterion-black-orpheus.jpg", source: "https://www.criterion.com/films/344-black-orpheus" },
+  { title: "Brief Encounter", poster: "/__mockup/images/reelroom-criterion-brief-encounter.jpg", source: "https://www.criterion.com/films/345-brief-encounter" },
+  { title: "The Fallen Idol", poster: "/__mockup/images/reelroom-criterion-the-fallen-idol.jpg", source: "https://www.criterion.com/films/346-the-fallen-idol" },
+  { title: "Fires on the Plain", poster: "/__mockup/images/reelroom-criterion-fires-on-the-plain.jpg", source: "https://www.criterion.com/films/347-fires-on-the-plain" },
+  { title: "Fists in the Pocket", poster: "/__mockup/images/reelroom-criterion-fists-in-the-pocket.jpg", source: "https://www.criterion.com/films/348-fists-in-the-pocket" },
+  { title: "Floating Weeds", poster: "/__mockup/images/reelroom-criterion-floating-weeds.jpg", source: "https://www.criterion.com/films/349-floating-weeds" },
+  { title: "Forbidden Games", poster: "/__mockup/images/reelroom-criterion-forbidden-games.jpg", source: "https://www.criterion.com/films/350-forbidden-games" },
+  { title: "Grand Illusion", poster: "/__mockup/images/reelroom-criterion-grand-illusion.jpg", source: "https://www.criterion.com/films/351-grand-illusion" },
+  { title: "Häxan", poster: "/__mockup/images/reelroom-criterion-haxan.jpg", source: "https://www.criterion.com/films/352-haxan" },
+  { title: "Ikiru", poster: "/__mockup/images/reelroom-criterion-ikiru.jpg", source: "https://www.criterion.com/films/353-ikiru" },
+  { title: "Il posto", poster: "/__mockup/images/reelroom-criterion-il-posto.jpg", source: "https://www.criterion.com/films/364-il-posto" },
+  { title: "The Importance of Being Earnest", poster: "/__mockup/images/reelroom-criterion-the-importance-of-being-earnest.jpg", source: "https://www.criterion.com/films/355-the-importance-of-being-earnest" },
+  { title: "Ivan the Terrible, Part II", poster: "/__mockup/images/reelroom-criterion-ivan-the-terrible-part-ii.jpg", source: "https://www.criterion.com/films/354-ivan-the-terrible-part-ii" },
+  { title: "Le jour se lève", poster: "/__mockup/images/reelroom-criterion-le-jour-se-leve.jpg", source: "https://www.criterion.com/films/356-le-jour-se-leve" },
+  { title: "Jules and Jim", poster: "/__mockup/images/reelroom-criterion-jules-and-jim.jpg", source: "https://www.criterion.com/films/218-jules-and-jim" },
+  { title: "Kind Hearts and Coronets", poster: "/__mockup/images/reelroom-criterion-kind-hearts-and-coronets.jpg", source: "https://www.criterion.com/films/357-kind-hearts-and-coronets" },
+  { title: "Knife in the Water", poster: "/__mockup/images/reelroom-criterion-knife-in-the-water.jpg", source: "https://www.criterion.com/films/219-knife-in-the-water" },
+  { title: "The Lady Vanishes", poster: "/__mockup/images/reelroom-criterion-the-lady-vanishes.jpg", source: "https://www.criterion.com/films/358-the-lady-vanishes" },
+  { title: "The Life and Death of Colonel Blimp", poster: "/__mockup/images/reelroom-criterion-the-life-and-death-of-colonel-blimp.jpg", source: "https://www.criterion.com/films/359-the-life-and-death-of-colonel-blimp" },
+  { title: "Loves of a Blonde", poster: "/__mockup/images/reelroom-criterion-loves-of-a-blonde.jpg", source: "https://www.criterion.com/films/246-loves-of-a-blonde" },
+  { title: "L’avventura", poster: "/__mockup/images/reelroom-criterion-l-avventura.jpg", source: "https://www.criterion.com/films/209-l-avventura" },
+  { title: "M", poster: "/__mockup/images/reelroom-criterion-m.jpg", source: "https://www.criterion.com/films/558-m" },
+  { title: "Monsieur Hulot’s Holiday", poster: "/__mockup/images/reelroom-criterion-monsieur-hulot-s-holiday.jpg", source: "https://www.criterion.com/films/360-monsieur-hulot-s-holiday" },
+  { title: "Miss Julie", poster: "/__mockup/images/reelroom-criterion-miss-julie.jpg", source: "https://www.criterion.com/films/361-miss-julie" },
+  { title: "Pandora’s Box", poster: "/__mockup/images/reelroom-criterion-pandora-s-box.jpg", source: "https://www.criterion.com/films/362-pandora-s-box" },
+  { title: "Pépé le moko", poster: "/__mockup/images/reelroom-criterion-pepe-le-moko.jpg", source: "https://www.criterion.com/films/363-pepe-le-moko" },
+  { title: "Pygmalion", poster: "/__mockup/images/reelroom-criterion-pygmalion.jpg", source: "https://www.criterion.com/films/365-pygmalion" },
+  { title: "Rashomon", poster: "/__mockup/images/reelroom-criterion-rashomon.jpg", source: "https://www.criterion.com/films/307-rashomon" },
+  { title: "Richard III", poster: "/__mockup/images/reelroom-criterion-richard-iii.jpg", source: "https://www.criterion.com/films/366-richard-iii" },
+  { title: "The Rules of the Game", poster: "/__mockup/images/reelroom-criterion-the-rules-of-the-game.jpg", source: "https://www.criterion.com/films/295-the-rules-of-the-game" },
+  { title: "Seven Samurai", poster: "/__mockup/images/reelroom-criterion-seven-samurai.jpg", source: "https://www.criterion.com/films/165-seven-samurai" },
+  { title: "The Seventh Seal", poster: "/__mockup/images/reelroom-criterion-the-seventh-seal.jpg", source: "https://www.criterion.com/films/173-the-seventh-seal" },
+  { title: "The Spirit of the Beehive", poster: "/__mockup/images/reelroom-criterion-the-spirit-of-the-beehive.jpg", source: "https://www.criterion.com/films/367-the-spirit-of-the-beehive" },
+  { title: "La strada", poster: "/__mockup/images/reelroom-criterion-la-strada.jpg", source: "https://www.criterion.com/films/185-la-strada" },
+  { title: "Summertime", poster: "/__mockup/images/reelroom-criterion-summertime.jpg", source: "https://www.criterion.com/films/368-summertime" },
+  { title: "The Third Man", poster: "/__mockup/images/reelroom-criterion-the-third-man.jpg", source: "https://www.criterion.com/films/236-the-third-man" },
+  { title: "Three Documentaries", poster: "/__mockup/images/reelroom-criterion-three-documentaries.jpg", source: "https://www.criterion.com/films/1079-three-documentaries" },
+  { title: "Ugetsu", poster: "/__mockup/images/reelroom-criterion-ugetsu.jpg", source: "https://www.criterion.com/films/369-ugetsu" },
+  { title: "Umberto D.", poster: "/__mockup/images/reelroom-criterion-umberto-d.jpg", source: "https://www.criterion.com/films/371-umberto-d" },
+  { title: "The Virgin Spring", poster: "/__mockup/images/reelroom-criterion-the-virgin-spring.jpg", source: "https://www.criterion.com/films/372-the-virgin-spring" },
+  { title: "Viridiana", poster: "/__mockup/images/reelroom-criterion-viridiana.jpg", source: "https://www.criterion.com/films/373-viridiana" },
+  { title: "The Wages of Fear", poster: "/__mockup/images/reelroom-criterion-the-wages-of-fear.jpg", source: "https://www.criterion.com/films/370-the-wages-of-fear" },
+  { title: "The White Sheik", poster: "/__mockup/images/reelroom-criterion-the-white-sheik.jpg", source: "https://www.criterion.com/films/374-the-white-sheik" },
+  { title: "Wild Strawberries", poster: "/__mockup/images/reelroom-criterion-wild-strawberries.jpg", source: "https://www.criterion.com/films/175-wild-strawberries" },
+];
 
 const HERO_POSTERS = [
   { movieId: "interstellar", image: "/__mockup/images/reelroom-interstellar.jpg", source: "https://en.wikipedia.org/wiki/Interstellar_(film)" },
@@ -751,6 +805,26 @@ export function Reelroom() {
     </div>
   </section>;
 
+  const criterionCollectionSection = () => <section className="rr-section rr-criterion-section" id="criterion" aria-labelledby="rr-criterion-heading">
+    <div className="rr-wrap">
+      <div className="rr-criterion-heading">
+        <div>
+          <span className="rr-eyebrow">The Criterion Collection · Essential Art House</span>
+          <h2 className="rr-section-title rr-display" id="rr-criterion-heading">Fifty frames in film history.</h2>
+          <p className="rr-collection-copy">A 50-film selection from Criterion’s Essential Art House: 50 Years of Janus Films box set. An invitation to explore, not an official ranking.</p>
+        </div>
+        <span className="rr-criterion-count"><strong>{CRITERION_FILMS.length}</strong><span>essential films</span></span>
+      </div>
+      <div className="rr-criterion-rail" role="list" aria-label="50 films from Criterion's Essential Art House collection">
+        {CRITERION_FILMS.map((film, index) => <a className="rr-criterion-card" key={film.title} href={film.source} target="_blank" rel="noopener noreferrer" role="listitem" aria-label={`View ${film.title} at The Criterion Collection`}>
+          <span className="rr-criterion-poster"><img src={film.poster} alt={`${film.title} Criterion Collection artwork`} loading={index < 7 ? "eager" : "lazy"} decoding="async"/></span>
+          <span className="rr-criterion-caption"><span className="rr-criterion-index">{String(index + 1).padStart(2, "0")} / 50</span><span className="rr-criterion-title">{film.title}</span></span>
+        </a>)}
+      </div>
+      <p className="rr-criterion-credit">Artwork and film details © their respective rights holders. <a href="https://www.criterion.com/boxsets/305-essential-art-house-50-years-of-janus-films" target="_blank" rel="noopener noreferrer">Explore the official Criterion set <ArrowRight size={12}/></a></p>
+    </div>
+  </section>;
+
   const handleHeroPointerMove = (event: ReactPointerEvent<HTMLElement>) => {
     if (event.pointerType !== "mouse" && event.pointerType !== "pen") return;
     const hero = event.currentTarget;
@@ -814,6 +888,7 @@ export function Reelroom() {
     {homeCollectionSection("Physical only", "The disc shelf", "Physical only.", "Eighty-two classics are listed on disc in this demo. Regional stock and release formats are not verified.", MOVIES.filter((movie) => movie.platforms.length === 0))}
     {homeCollectionSection("Top 100", "A growing shortlist", "The Top 100.", `Built for 100 films; ${MOVIES.length} titles are on the shelf today.`, MOVIES)}
     {homeCollectionSection("Academy Award films", "The gold standard", "Academy Award films.", "A collection of Academy Award-winning pictures, performances, writing, and craft.", MOVIES.filter((movie) => ACADEMY_AWARD_IDS.has(movie.id)))}
+    {criterionCollectionSection()}
     <section className="rr-section compact">
       <div className="rr-wrap">
         <div className="rr-section-head"><div><span className="rr-eyebrow">Choose your experience</span><h2 className="rr-section-title rr-display">Cinema, your way.</h2></div></div>
