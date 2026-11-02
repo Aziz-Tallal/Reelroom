@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent, type PointerEvent as ReactPointerEvent, type ReactNode, type TransitionEvent as ReactTransitionEvent } from "react";
+import { createContext, useContext, useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent, type PointerEvent as ReactPointerEvent, type ReactNode, type TransitionEvent as ReactTransitionEvent } from "react";
 import {
   ArrowDownRight, ArrowLeft, ArrowRight, Check, CheckCircle2,
   Clapperboard, Film, Heart, Menu, Minus, Play, Plus, RotateCcw, Search,
@@ -11,7 +11,17 @@ type Movie = {
   id: string; title: string; year: number; genre: string; genres?: string[]; runtime: number;
   director: string; synopsis: string; palette: [string, string]; platforms: string[];
   posterExt?: string; posterPath?: string; sourcePage?: string; isCriterion?: boolean; isAnimated?: boolean; artVariation?: number;
+  teaser?: { src: string; approvalStatus: "pending" | "approved"; reviewed: boolean; captionsUrl?: string; hasAudio?: boolean };
 };
+type PosterPreviewContextValue = {
+  activeId: string | null;
+  setActiveId: (id: string | null) => void;
+  selectedId: string | null;
+  setSelectedId: (id: string | null) => void;
+};
+const PosterPreviewContext = createContext<PosterPreviewContextValue>({
+  activeId: null, setActiveId: () => undefined, selectedId: null, setSelectedId: () => undefined,
+});
 type View = "home" | "browse" | "physical" | "digital" | "details" | "watchlist" | "cart" | "checkout" | "library" | "about" | "contact" | "ad";
 type Collection = "All films" | "Digital only" | "Physical only" | "Top 100" | "Academy Award films" | "Animated movies";
 type ClassicSeed = [id: string, title: string, year: number, genre: string, runtime: number, director: string, synopsis: string, wikiSlug: string, posterExt: string];
@@ -701,8 +711,107 @@ function Logo({ onClick }: { onClick: () => void }) {
 }
 
 function Poster({ movie, onClick, saved, onFavorite }: { movie: Movie; onClick: () => void; saved: boolean; onFavorite: () => void }) {
-  return <div className="rr-poster" role="button" tabIndex={0} onClick={onClick} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") onClick(); }} style={{ "--poster-bg": `linear-gradient(148deg, ${movie.palette[0]}, #11181c 78%)`, "--poster-glow": movie.palette[1] } as CSSProperties} aria-label={`View ${movie.title} details`}>
-    <img className="rr-poster-image" src={movie.posterPath ?? `/__mockup/images/reelroom-${movie.id}.${movie.posterExt ?? "jpg"}`} alt={`${movie.title} theatrical poster`} loading="lazy" onError={(event) => { event.currentTarget.classList.add("poster-error"); if (movie.isAnimated) event.currentTarget.nextElementSibling?.classList.add("poster-fallback-visible"); }}/>
+  const preview = useContext(PosterPreviewContext);
+  const timerRef = useRef<number | null>(null);
+  const closeTimerRef = useRef<number | null>(null);
+  const touchActivationRef = useRef(false);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const dialogRef = useRef<HTMLElement>(null);
+  const [arming, setArming] = useState(false);
+  const [closing, setClosing] = useState(false);
+  const [soundEnabled, setSoundEnabled] = useState(false);
+  const [videoUnavailable, setVideoUnavailable] = useState(false);
+  const isExpanded = preview.activeId === movie.id;
+  const isTouchSelected = preview.selectedId === movie.id;
+  const approvedTeaser = movie.teaser?.approvalStatus === "approved" && movie.teaser.reviewed ? movie.teaser : null;
+  const posterSource = movie.posterPath ?? `/__mockup/images/reelroom-${movie.id}.${movie.posterExt ?? "jpg"}`;
+
+  const clearTimer = () => {
+    if (timerRef.current !== null) window.clearTimeout(timerRef.current);
+    timerRef.current = null;
+    setArming(false);
+  };
+  const closePreview = () => {
+    clearTimer();
+    if (preview.activeId === movie.id && !closing) {
+      videoRef.current?.pause();
+      setClosing(true);
+      closeTimerRef.current = window.setTimeout(() => {
+        if (preview.activeId === movie.id) preview.setActiveId(null);
+        closeTimerRef.current = null;
+        setClosing(false);
+      }, 420);
+    }
+    if (preview.selectedId === movie.id) preview.setSelectedId(null);
+    setSoundEnabled(false);
+  };
+  const startCountdown = () => {
+    if (isExpanded || timerRef.current !== null) return;
+    preview.setActiveId(null);
+    preview.setSelectedId(null);
+    setArming(true);
+    timerRef.current = window.setTimeout(() => {
+      timerRef.current = null;
+      setArming(false);
+      preview.setActiveId(movie.id);
+    }, 10_000);
+  };
+
+  useEffect(() => () => {
+    if (timerRef.current !== null) window.clearTimeout(timerRef.current);
+    if (closeTimerRef.current !== null) window.clearTimeout(closeTimerRef.current);
+  }, []);
+
+  useEffect(() => {
+    if (!isExpanded || !approvedTeaser || videoUnavailable) return;
+    const syncPlayback = () => {
+      const video = videoRef.current;
+      if (!video) return;
+      if (document.hidden) {
+        video.pause();
+        return;
+      }
+      void video.play().catch(() => setVideoUnavailable(true));
+    };
+    document.addEventListener("visibilitychange", syncPlayback);
+    syncPlayback();
+    return () => document.removeEventListener("visibilitychange", syncPlayback);
+  }, [approvedTeaser, isExpanded, videoUnavailable]);
+
+  return <div
+    className={`rr-poster ${arming ? "preview-arming" : ""} ${isExpanded ? "is-preview-expanded" : ""} ${isTouchSelected ? "is-preview-selected" : ""}`}
+    role="button"
+    tabIndex={0}
+    onPointerDown={(event) => { touchActivationRef.current = event.pointerType === "touch"; }}
+    onPointerEnter={(event) => { if (event.pointerType !== "touch") startCountdown(); }}
+    onPointerLeave={(event) => {
+      if (event.pointerType === "touch") return;
+      if (isExpanded && dialogRef.current?.contains(event.relatedTarget as Node | null)) return;
+      closePreview();
+    }}
+    onFocus={() => startCountdown()}
+    onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) closePreview(); }}
+    onClick={(event) => {
+      if ((event.target as HTMLElement).closest("button")) return;
+      if (touchActivationRef.current) {
+        preview.setSelectedId(movie.id);
+        touchActivationRef.current = false;
+        return;
+      }
+      onClick();
+    }}
+    onKeyDown={(event) => {
+      if (event.key === "Escape" && isExpanded) { event.preventDefault(); closePreview(); return; }
+      if ((event.key === "Enter" || event.key === " ") && event.target === event.currentTarget) {
+        event.preventDefault();
+        onClick();
+      }
+    }}
+    style={{ "--poster-bg": `linear-gradient(148deg, ${movie.palette[0]}, #11181c 78%)`, "--poster-glow": movie.palette[1] } as CSSProperties}
+    aria-label={`View ${movie.title} details. Hover for ten seconds or focus to open a safe preview.`}
+    aria-expanded={isExpanded}
+  >
+    <img className="rr-poster-image" src={posterSource} alt={`${movie.title} theatrical poster`} loading="lazy" onError={(event) => { event.currentTarget.classList.add("poster-error"); if (movie.isAnimated) event.currentTarget.nextElementSibling?.classList.add("poster-fallback-visible"); }}/>
     <div className={`rr-poster-art ${movie.isAnimated ? "rr-animated-art" : ""}`} data-variation={movie.artVariation ?? 0} aria-hidden="true"/>
     <span className="rr-poster-mark">REELROOM ARCHIVE</span>
     <button className={`rr-fav ${saved ? "saved" : ""}`} aria-label={saved ? `Remove ${movie.title} from watchlist` : `Add ${movie.title} to watchlist`} onClick={(event) => { event.stopPropagation(); onFavorite(); }}>
@@ -711,9 +820,38 @@ function Poster({ movie, onClick, saved, onFavorite }: { movie: Movie; onClick: 
     <span className="rr-poster-title">{movie.title}</span>
     <span className="rr-poster-year">{movie.isCriterion ? "CRITERION COLLECTION" : `${movie.year} · ${movie.genre.toUpperCase()}`}</span>
     <div className="rr-card-actions">
-      <button className="rr-card-action" onClick={(event) => { event.stopPropagation(); onClick(); }}>Details <ArrowRight size={12}/></button>
+      <button className="rr-card-action" onClick={(event) => { event.stopPropagation(); closePreview(); onClick(); }}>Details <ArrowRight size={12}/></button>
       <button className="rr-card-action" aria-label={`Favorite ${movie.title}`} onClick={(event) => { event.stopPropagation(); onFavorite(); }}><Heart size={13} fill={saved ? "currentColor" : "none"}/></button>
     </div>
+    {isTouchSelected && <button className="rr-mobile-preview-button" onClick={(event) => { event.stopPropagation(); preview.setActiveId(movie.id); }}><Play size={13}/> Watch Preview</button>}
+    {isExpanded && <div className="rr-preview-backdrop" onClick={(event) => { event.stopPropagation(); closePreview(); }}>
+      <section className={`rr-preview-dialog ${closing ? "is-closing" : ""}`} ref={dialogRef} role="dialog" aria-modal="true" aria-label={`${movie.title} cinematic preview`} onClick={(event) => event.stopPropagation()}>
+        <button className="rr-preview-close" aria-label="Close preview" onClick={closePreview}><X size={17}/></button>
+        <div className="rr-preview-visual">
+          {approvedTeaser && !videoUnavailable
+            ? <video ref={videoRef} className="rr-preview-video" src={approvedTeaser.src} poster={posterSource} autoPlay muted={!soundEnabled || !approvedTeaser.hasAudio} loop playsInline preload="none" onError={() => setVideoUnavailable(true)}>
+                {approvedTeaser.captionsUrl && <track kind="captions" src={approvedTeaser.captionsUrl} srcLang="en" label="English captions" default/>}
+              </video>
+            : <img className="rr-preview-poster-image" src={posterSource} alt={`${movie.title} poster artwork`} onError={(event) => event.currentTarget.classList.add("poster-error")}/>}
+          <div className="rr-preview-film-wash"/>
+          {!approvedTeaser || videoUnavailable
+            ? <span className="rr-preview-safety-note"><span/> Poster-led preview · teaser not enabled</span>
+            : <span className="rr-preview-safety-note"><span/> Curated teaser · muted</span>}
+        </div>
+        <div className="rr-preview-copy">
+          <span className="rr-preview-kicker">A closer look · REELROOM</span>
+          <h2>{movie.title}</h2>
+          <p className="rr-preview-meta">{movie.year} <span>·</span> {movie.genre} <span>·</span> {movie.runtime} min</p>
+          <p className="rr-preview-synopsis">{movie.synopsis}</p>
+          <div className="rr-preview-actions">
+            <button className="rr-button" onClick={() => { closePreview(); onClick(); }}>View movie <ArrowRight size={14}/></button>
+            <button className="rr-button secondary" onClick={onFavorite}><Heart size={14} fill={saved ? "currentColor" : "none"}/>{saved ? "In watchlist" : "Add to watchlist"}</button>
+            {approvedTeaser?.hasAudio && <button className="rr-preview-sound" aria-label={soundEnabled ? "Mute teaser" : "Enable teaser sound"} onClick={() => setSoundEnabled((enabled) => !enabled)}>{soundEnabled ? "Sound on" : "Sound off"}</button>}
+          </div>
+          {!approvedTeaser && <p className="rr-preview-footnote">No manually reviewed teaser is available for this film yet. We’ll keep the poster in view rather than autoplay an unapproved clip.</p>}
+        </div>
+      </section>
+    </div>}
   </div>;
 }
 
@@ -864,6 +1002,8 @@ function RotatingMovieShelf({ items, ariaLabel, columns = "four", renderMovie }:
 export function Reelroom() {
   const [view, setView] = useState<View>("home");
   const [selectedMovieId, setSelectedMovieId] = useState(MOVIES[0].id);
+  const [activePreviewId, setActivePreviewId] = useState<string | null>(null);
+  const [selectedPreviewId, setSelectedPreviewId] = useState<string | null>(null);
   const [watchlist, setWatchlist] = useState<string[]>(() => readStored("reelroom-watchlist", []));
   const [cart, setCart] = useState<CartLine[]>(() => readStored("reelroom-cart", []));
   const [orders, setOrders] = useState<DemoOrder[]>(() => readStored("reelroom-orders", []));
@@ -960,6 +1100,8 @@ export function Reelroom() {
   }, [adPlaying, adKey]);
 
   const navigate = (next: View) => {
+    setActivePreviewId(null);
+    setSelectedPreviewId(null);
     if (next !== "details") setCollection("All films");
     setView(next);
     setMobileOpen(false);
@@ -1406,10 +1548,12 @@ export function Reelroom() {
     : view === "contact" ? renderContact()
     : renderAd();
 
-  return <div className="reelroom">
-    {renderNav()}
-    {content}
-    {view !== "ad" && renderFooter()}
-    <div className="rr-toast-stack" aria-live="polite" aria-atomic="true">{toast && <div className="rr-toast"><CheckCircle2 size={18}/>{toast}</div>}</div>
-  </div>;
+  return <PosterPreviewContext.Provider value={{ activeId: activePreviewId, setActiveId: setActivePreviewId, selectedId: selectedPreviewId, setSelectedId: setSelectedPreviewId }}>
+    <div className={`reelroom ${activePreviewId ? "rr-has-active-preview" : ""}`} data-preview-active={activePreviewId ? "true" : "false"}>
+      {renderNav()}
+      {content}
+      {view !== "ad" && renderFooter()}
+      <div className="rr-toast-stack" aria-live="polite" aria-atomic="true">{toast && <div className="rr-toast"><CheckCircle2 size={18}/>{toast}</div>}</div>
+    </div>
+  </PosterPreviewContext.Provider>;
 }

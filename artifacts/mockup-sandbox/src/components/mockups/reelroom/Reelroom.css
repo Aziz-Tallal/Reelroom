@@ -485,3 +485,360 @@
     will-change: auto;
   }
 }
+
+/* Cinematic hover previews */
+.reelroom .rr-poster {
+  position: relative;
+  transition: box-shadow .45s cubic-bezier(.2, .75, .2, 1), transform .45s cubic-bezier(.2, .75, .2, 1);
+}
+
+.reelroom .rr-poster.preview-arming {
+  box-shadow: 0 0 0 1px rgba(0, 224, 84, .42), 0 10px 34px rgba(0, 0, 0, .34);
+}
+
+.reelroom .rr-grid:has(.rr-poster.is-preview-expanded),
+.reelroom .rr-shelf-carousel:has(.rr-poster.is-preview-expanded),
+.reelroom .rr-shelf-track:has(.rr-poster.is-preview-expanded),
+.reelroom .rr-shelf-slide:has(.rr-poster.is-preview-expanded) {
+  overflow: visible;
+}
+
+.reelroom .rr-grid:has(.rr-poster.is-preview-expanded) .rr-movie-card:not(:has(.rr-poster.is-preview-expanded)),
+.reelroom .rr-shelf-track:has(.rr-poster.is-preview-expanded) .rr-shelf-slide:not(:has(.rr-poster.is-preview-expanded)) .rr-movie-card {
+  opacity: .38;
+  transform: scale(.92);
+}
+
+.reelroom .rr-grid .rr-movie-card,
+.reelroom .rr-shelf-track .rr-movie-card,
+.reelroom .rr-shelf-slide {
+  transition: transform .5s cubic-bezier(.2, .75, .2, 1), opacity .5s ease;
+}
+
+.reelroom .rr-movie-card:has(.rr-poster.is-preview-expanded),
+.reelroom .rr-shelf-slide:has(.rr-poster.is-preview-expanded) {
+  position: relative;
+  z-index: 24;
+}
+
+.reelroom .rr-poster.is-preview-expanded {
+  z-index: 25;
+  overflow: visible;
+  box-shadow: 0 22px 58px rgba(0, 0, 0, .4);
+}
+
+.reelroom .rr-preview-backdrop {
+  opacity: 1;
+}
+
+.reelroom .rr-preview-dialog {
+  transform-origin: center;
+}
+
+.reelroom .rr-poster.is-preview-expanded > :not(.rr-preview-backdrop) {
+  opacity: .16;
+  transition: opacity .35s ease;
+}
+
+.reelroom .rr-preview-backdrop {
+  position: absolute;
+  z-index: 30;
+  top: 0;
+  left: 50%;
+  width: min(620px, 66vw);
+  aspect-ratio: 16 / 9;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+.reelroom .rr-preview-dialog {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1.05fr .95fr;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  border: 1px solid rgba(214, 230, 220, .2);
+  border-radius: 14px;
+  background: #11191b;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, .62), 0 0 0 1px rgba(0, 224, 84, .09);
+  color: #edf1ef;
+  pointer-events: auto;
+  animation: rr-preview-open .52s cubic-bezier(.2, .75, .2, 1) both;
+}
+
+.reelroom .rr-preview-dialog.is-closing {
+  animation: rr-preview-close .42s cubic-bezier(.4, 0, .8, .2) both;
+  pointer-events: none;
+}
+
+.reelroom .rr-preview-visual {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--poster-bg, #172529);
+}
+
+.reelroom .rr-preview-poster-image,
+.reelroom .rr-preview-video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.reelroom .rr-preview-poster-image {
+  animation: rr-preview-image-in .6s ease both;
+}
+
+.reelroom .rr-preview-film-wash {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(0deg, rgba(5, 9, 11, .84), transparent 53%), linear-gradient(90deg, transparent 70%, rgba(8, 13, 15, .22));
+  pointer-events: none;
+}
+
+.reelroom .rr-preview-safety-note {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  left: 12px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: rgba(242, 246, 243, .85);
+  font-size: 8px;
+  font-weight: 650;
+  letter-spacing: .11em;
+  text-transform: uppercase;
+}
+
+.reelroom .rr-preview-safety-note span {
+  width: 6px;
+  height: 6px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: #00e054;
+  box-shadow: 0 0 12px rgba(0, 224, 84, .38);
+}
+
+.reelroom .rr-preview-copy {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  justify-content: center;
+  padding: clamp(18px, 2.5vw, 31px);
+  background: radial-gradient(ellipse at 100% 0%, rgba(41, 80, 61, .2), transparent 50%), linear-gradient(135deg, #172123, #101618 70%);
+}
+
+.reelroom .rr-preview-kicker {
+  color: #56e783;
+  font-size: 8px;
+  font-weight: 750;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+}
+
+.reelroom .rr-preview-copy h2 {
+  margin: 12px 30px 7px 0;
+  color: #f4f5f2;
+  font-family: var(--font-display, inherit);
+  font-size: clamp(22px, 2.4vw, 34px);
+  font-weight: 650;
+  line-height: 1.02;
+  letter-spacing: -.04em;
+}
+
+.reelroom .rr-preview-meta {
+  margin: 0;
+  color: #abb6b3;
+  font-size: 9px;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+}
+
+.reelroom .rr-preview-meta span {
+  padding: 0 4px;
+  color: #00e054;
+}
+
+.reelroom .rr-preview-synopsis {
+  max-width: 37em;
+  margin: 14px 0 19px;
+  color: #c0c8c4;
+  font-size: 11px;
+  line-height: 1.65;
+}
+
+.reelroom .rr-preview-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.reelroom .rr-preview-actions .rr-button {
+  min-height: 37px;
+  padding: 0 12px;
+  font-size: 9px;
+}
+
+.reelroom .rr-preview-sound {
+  min-height: 34px;
+  padding: 0 10px;
+  border: 1px solid rgba(236, 244, 239, .2);
+  background: transparent;
+  color: #d4ded8;
+  font-size: 9px;
+  cursor: pointer;
+}
+
+.reelroom .rr-preview-footnote {
+  margin: 14px 0 0;
+  color: #818e89;
+  font-size: 8px;
+  line-height: 1.5;
+}
+
+.reelroom .rr-preview-close {
+  position: absolute;
+  z-index: 3;
+  top: 10px;
+  right: 10px;
+  display: grid;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  place-items: center;
+  border: 1px solid rgba(241, 246, 243, .25);
+  border-radius: 50%;
+  background: rgba(8, 13, 15, .7);
+  color: #f2f5f2;
+  cursor: pointer;
+  transition: transform .2s ease, background .2s ease;
+}
+
+.reelroom .rr-preview-close:hover {
+  transform: scale(1.06);
+  background: rgba(0, 224, 84, .2);
+}
+
+.reelroom .rr-preview-close:focus-visible,
+.reelroom .rr-preview-actions button:focus-visible {
+  outline: 2px solid #00e054;
+  outline-offset: 3px;
+}
+
+.reelroom .rr-mobile-preview-button {
+  display: none;
+}
+
+@keyframes rr-preview-open {
+  from { opacity: 0; transform: translateY(8px) scale(.96); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes rr-preview-close {
+  from { opacity: 1; transform: translateY(0) scale(1); }
+  to { opacity: 0; transform: translateY(7px) scale(.975); }
+}
+
+@keyframes rr-preview-image-in {
+  from { opacity: .72; transform: scale(1.035); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@media (max-width: 767px) {
+  .reelroom .rr-poster.is-preview-selected {
+    box-shadow: 0 0 0 1px rgba(0, 224, 84, .48);
+  }
+
+  .reelroom .rr-mobile-preview-button {
+    position: absolute;
+    z-index: 6;
+    right: 8px;
+    bottom: 39px;
+    left: 8px;
+    display: flex;
+    min-height: 42px;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    border: 1px solid rgba(136, 255, 168, .42);
+    background: rgba(5, 14, 10, .9);
+    color: #b5ffc9;
+    font-size: 10px;
+    font-weight: 750;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    cursor: pointer;
+    backdrop-filter: blur(12px);
+  }
+
+  .reelroom .rr-preview-backdrop {
+    position: fixed;
+    z-index: 1000;
+    inset: 0;
+    display: grid;
+    width: 100%;
+    height: 100%;
+    aspect-ratio: auto;
+    padding: 12px;
+    place-items: center;
+    transform: none;
+    background: rgba(5, 8, 9, .86);
+    pointer-events: auto;
+    backdrop-filter: blur(10px);
+  }
+
+  .reelroom .rr-preview-dialog {
+    grid-template-columns: 1fr;
+    grid-template-rows: minmax(180px, 28dvh) auto;
+    width: min(520px, 100%);
+    height: auto;
+    max-height: calc(100dvh - 24px);
+    aspect-ratio: auto;
+    overflow: auto;
+    border-radius: 12px;
+  }
+
+  .reelroom .rr-preview-copy {
+    padding: 17px;
+  }
+
+  .reelroom .rr-preview-copy h2 {
+    margin-top: 9px;
+    font-size: 27px;
+  }
+
+  .reelroom .rr-preview-synopsis {
+    margin: 10px 0 14px;
+    font-size: 10px;
+  }
+
+  .reelroom .rr-preview-actions {
+    gap: 7px;
+  }
+
+  .reelroom .rr-preview-actions .rr-button {
+    min-height: 42px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reelroom .rr-poster,
+  .reelroom .rr-grid .rr-movie-card,
+  .reelroom .rr-shelf-track .rr-movie-card,
+  .reelroom .rr-shelf-slide,
+  .reelroom .rr-preview-close {
+    transition: none;
+  }
+
+  .reelroom .rr-preview-dialog,
+  .reelroom .rr-preview-poster-image {
+    animation: none;
+  }
+}
