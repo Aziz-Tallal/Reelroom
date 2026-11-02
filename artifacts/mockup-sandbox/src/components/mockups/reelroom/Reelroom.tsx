@@ -422,6 +422,45 @@ export function Reelroom() {
   useEffect(() => { saveStored("reelroom-orders", orders); }, [orders]);
   useEffect(() => { if (!toast) return; const timeout = window.setTimeout(() => setToast(""), 2700); return () => window.clearTimeout(timeout); }, [toast]);
   useEffect(() => {
+    if (view !== "home") return;
+    const hero = document.querySelector<HTMLElement>(".rr-hero");
+    if (!hero) return;
+
+    const posters = Array.from(hero.querySelectorAll<HTMLElement>(".rr-hero-poster"));
+    const motionPreference = window.matchMedia("(prefers-reduced-motion: reduce)");
+    let animationFrame = 0;
+
+    const updateScrollDrift = () => {
+      animationFrame = 0;
+      const scrollDistance = Math.max(0, window.scrollY);
+
+      posters.forEach((poster, index) => {
+        const direction = index % 2 === 0 ? -1 : 1;
+        const strength = 0.014 + (index % 3) * 0.003;
+        const offset = motionPreference.matches
+          ? 0
+          : Math.max(-12, Math.min(12, scrollDistance * strength * direction));
+        poster.style.setProperty("--poster-scroll-y", `${offset.toFixed(2)}px`);
+      });
+    };
+
+    const scheduleUpdate = () => {
+      if (!animationFrame) animationFrame = window.requestAnimationFrame(updateScrollDrift);
+    };
+    const handleMotionChange = () => scheduleUpdate();
+
+    scheduleUpdate();
+    window.addEventListener("scroll", scheduleUpdate, { passive: true });
+    motionPreference.addEventListener("change", handleMotionChange);
+
+    return () => {
+      window.removeEventListener("scroll", scheduleUpdate);
+      motionPreference.removeEventListener("change", handleMotionChange);
+      if (animationFrame) window.cancelAnimationFrame(animationFrame);
+      posters.forEach((poster) => poster.style.removeProperty("--poster-scroll-y"));
+    };
+  }, [view]);
+  useEffect(() => {
     if (!adPlaying) return;
     const timer = window.setInterval(() => setAdSecond((current) => {
       if (current >= 11) { setAdPlaying(false); return 12; }
