@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "REELROOM Storefront"
+description = "A cinematic movie storefront based on the REELROOM canvas design. Browse and filter a curated film archive, view physical and digital editions, save a watchlist, manage a cart, place local demo orders, and see them in a personal library."
+version = "1.0.0"
+id = "artifacts/reelroom-storefront"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 23224
+
+[services.development]
+run = "pnpm --filter @workspace/reelroom-storefront run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/reelroom-storefront", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/reelroom-storefront/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "23224"
+BASE_PATH = "/"
