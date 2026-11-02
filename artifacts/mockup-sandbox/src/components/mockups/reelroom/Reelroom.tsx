@@ -12,7 +12,7 @@ type Movie = {
   director: string; synopsis: string; palette: [string, string]; platforms: string[];
   posterExt?: string; posterPath?: string; sourcePage?: string; isCriterion?: boolean;
 };
-type View = "home" | "browse" | "physical" | "digital" | "criterion" | "details" | "watchlist" | "cart" | "checkout" | "library" | "about" | "contact" | "ad";
+type View = "home" | "browse" | "physical" | "digital" | "details" | "watchlist" | "cart" | "checkout" | "library" | "about" | "contact" | "ad";
 type Collection = "All films" | "Digital only" | "Physical only" | "Top 100" | "Academy Award films";
 type ClassicSeed = [id: string, title: string, year: number, genre: string, runtime: number, director: string, synopsis: string, wikiSlug: string, posterExt: string];
 const COLLECTIONS: Collection[] = ["All films", "Digital only", "Physical only", "Top 100", "Academy Award films"];
@@ -150,8 +150,6 @@ const RECENT_MOVIES: Movie[] = [
   { id: "barbie", title: "Barbie", year: 2023, genre: "Comedy", runtime: 114, director: "Greta Gerwig", synopsis: "A day in the perfect world leads Barbie and Ken into a funny, strange trip through the real one.", palette: ["#e04d83", "#f1c2ad"], platforms: ["Apple TV", "Amazon Prime Video", "Google TV"], sourcePage: "https://en.wikipedia.org/wiki/Barbie_(film)" },
   { id: "poor-things", title: "Poor Things", year: 2023, genre: "Fantasy", runtime: 141, director: "Yorgos Lanthimos", synopsis: "A young woman remade by an unorthodox scientist leaves home to discover the world on her own terms.", palette: ["#28364b", "#d59e74"], platforms: ["Apple TV", "Google TV", "YouTube Movies"], sourcePage: "https://en.wikipedia.org/wiki/Poor_Things_(film)" },
 ];
-const MOVIES: Movie[] = [...BASE_MOVIES, ...CLASSIC_MOVIES, ...RECENT_MOVIES];
-
 const ACADEMY_AWARD_IDS = new Set([
   "interstellar", "blade-runner-2049", "dark-knight", "grand-budapest", "dune-part-two",
   "whiplash", "parasite", "spirited-away", "godfather", "pulp-fiction", "oppenheimer",
@@ -234,7 +232,7 @@ const CRITERION_MOVIES: Movie[] = CRITERION_FILMS.map((film, index) => ({
   title: film.title,
   posterPath: film.poster,
   year: 0,
-  genre: "Criterion Collection",
+  genre: "Classic",
   runtime: 0,
   director: "Criterion · Janus Films",
   synopsis: "A Criterion Collection title in REELROOM’s expanded film archive. Choose a disc edition or a digital platform option through the REELROOM cart. Current editions, streaming rights, and availability are not verified.",
@@ -243,7 +241,19 @@ const CRITERION_MOVIES: Movie[] = CRITERION_FILMS.map((film, index) => ({
   sourcePage: film.source,
   isCriterion: true,
 }));
-const STORE_MOVIES: Movie[] = [...MOVIES, ...CRITERION_MOVIES];
+const normalizeFilmTitle = (title: string) => title
+  .normalize("NFD")
+  .replace(/[\u0300-\u036f]/g, "")
+  .toLowerCase()
+  .replace(/[^a-z0-9]/g, "");
+const existingFilmTitles = new Set([...BASE_MOVIES, ...CLASSIC_MOVIES, ...RECENT_MOVIES].map((movie) => normalizeFilmTitle(movie.title)));
+const UNIQUE_CRITERION_MOVIES = CRITERION_MOVIES.filter((movie) => {
+  const normalizedTitle = normalizeFilmTitle(movie.title);
+  if (existingFilmTitles.has(normalizedTitle)) return false;
+  existingFilmTitles.add(normalizedTitle);
+  return true;
+});
+const MOVIES: Movie[] = [...BASE_MOVIES, ...CLASSIC_MOVIES, ...RECENT_MOVIES, ...UNIQUE_CRITERION_MOVIES];
 
 const HERO_POSTERS = [
   { movieId: "interstellar", image: "/__mockup/images/reelroom-interstellar.jpg", source: "https://en.wikipedia.org/wiki/Interstellar_(film)" },
@@ -274,6 +284,7 @@ const POSTER_SOURCES: Record<string, string> = {
   "before-sunrise": "https://en.wikipedia.org/wiki/Before_Sunrise",
   ...Object.fromEntries(CLASSIC_MOVIES.map((movie) => [movie.id, movie.sourcePage ?? "https://en.wikipedia.org/wiki/Film"])),
   ...Object.fromEntries(RECENT_MOVIES.map((movie) => [movie.id, movie.sourcePage ?? "https://en.wikipedia.org/wiki/Film"])),
+  ...Object.fromEntries(UNIQUE_CRITERION_MOVIES.map((movie) => [movie.id, movie.sourcePage ?? "https://www.criterion.com/"])),
   "sound-of-music": "https://commons.wikimedia.org/wiki/File:Sound_of_music.jpg",
 };
 
@@ -285,7 +296,7 @@ const PHYSICAL_PRICE: Record<string, Record<string, number>> = {
 };
 const STORE_KEY = "reelroom-prototype-v1";
 const money = (n: number) => `${n.toFixed(3)} KWD`;
-const movieFor = (id: string) => STORE_MOVIES.find((movie) => movie.id === id) ?? MOVIES[0];
+const movieFor = (id: string) => MOVIES.find((movie) => movie.id === id) ?? MOVIES[0];
 const readStored = <T,>(key: string, fallback: T): T => {
   try { const raw = localStorage.getItem(key); return raw ? JSON.parse(raw) as T : fallback; } catch { return fallback; }
 };
@@ -543,11 +554,7 @@ function GravityField() {
 
 function Logo({ onClick }: { onClick: () => void }) {
   return <button className="rr-brand" onClick={onClick} aria-label="REELROOM home" style={{ background: "none", border: 0, padding: 0, cursor: "pointer", color: "inherit", textAlign: "left" }}>
-    <svg className="rr-mark" viewBox="0 0 36 36" aria-hidden="true">
-      <path d="M5 4.5h26v27H5z" fill="none" stroke="#00E054" strokeWidth="1.5"/>
-      <path d="M10 27V9h8.1c4 0 6.2 1.9 6.2 5 0 2.5-1.4 4.1-3.9 4.7L26 27h-5.4l-4.9-7.8h-1.1V27zm4.6-11.6h3.2c1.3 0 2-.5 2-1.5s-.7-1.5-2-1.5h-3.2z" fill="#F2F4F6"/>
-      <path d="M2 10V2h8M26 2h8v8M34 26v8h-8M10 34H2v-8" fill="none" stroke="var(--rr-blue)" strokeWidth="1"/>
-    </svg>
+    <img className="rr-mark" src="/__mockup/images/reelroom-award-logo.png" alt="" aria-hidden="true" style={{ width: 48, height: 48, objectFit: "contain", flexShrink: 0 }}/>
     <span><span className="rr-wordmark">REELROOM</span><span className="rr-tagline">Every Film. Your Way.</span></span>
   </button>;
 }
@@ -841,34 +848,6 @@ export function Reelroom() {
     </div>
   </section>;
 
-  const criterionCollectionSection = () => <section className="rr-section rr-home-collection" id="criterion" aria-labelledby="rr-criterion-heading">
-    <div className="rr-wrap">
-      <div className="rr-section-head">
-        <div>
-          <span className="rr-eyebrow">The Criterion Collection · Essential Art House</span>
-          <h2 className="rr-section-title rr-display" id="rr-criterion-heading">Beyond the essentials.</h2>
-          <p className="rr-collection-copy">A four-film preview from a collection of {CRITERION_FILMS.length}. Choose a title for REELROOM physical or digital options.</p>
-        </div>
-        <button className="rr-text-link" onClick={() => navigate("criterion")}>Explore collection <ArrowRight size={14}/></button>
-      </div>
-      {movieGrid(CRITERION_MOVIES.slice(0, 4), "four")}
-    </div>
-  </section>;
-
-  const renderCriterionCollection = () => <main className="rr-wrap">
-    <div className="rr-page-head">
-      <span className="rr-eyebrow">Curated editions · Criterion Collection</span>
-      <h1>Beyond the essentials.</h1>
-      <p>Explore all {CRITERION_MOVIES.length} Criterion selections. Open any film to choose a physical disc or a digital demo option through REELROOM.</p>
-    </div>
-    <div className="rr-results-line">
-      <span>{CRITERION_MOVIES.length} Criterion films</span>
-      <button className="rr-text-link" onClick={() => navigate("home")}><ArrowLeft size={13}/> Back to home</button>
-    </div>
-    {movieGrid(CRITERION_MOVIES, "four")}
-    <p className="rr-criterion-credit">Artwork and film details © their respective rights holders. <a href="https://www.criterion.com/boxsets/305-essential-art-house-50-years-of-janus-films" target="_blank" rel="noopener noreferrer">Selection source: Criterion’s Essential Art House set <ArrowRight size={12}/></a><span>Options and prices in REELROOM are illustrative, not verified availability or streaming rights.</span></p>
-  </main>;
-
   const handleHeroPointerMove = (event: ReactPointerEvent<HTMLElement>) => {
     if (event.pointerType !== "mouse" && event.pointerType !== "pen") return;
     const hero = event.currentTarget;
@@ -932,7 +911,6 @@ export function Reelroom() {
     {homeCollectionSection("Physical only", "The disc shelf", "Physical only.", `${MOVIES.filter((movie) => movie.platforms.length === 0).length} titles are listed as physical-only in this demo. Regional stock and release formats are not verified.`, MOVIES.filter((movie) => movie.platforms.length === 0))}
     {homeCollectionSection("Top 100", "A growing shortlist", "The Top 100.", "A dedicated 100-film shelf within an archive that keeps growing.", MOVIES.slice(0, 100))}
     {homeCollectionSection("Academy Award films", "The gold standard", "Academy Award films.", "A collection of Academy Award-winning pictures, performances, writing, and craft.", MOVIES.filter((movie) => ACADEMY_AWARD_IDS.has(movie.id)))}
-    {criterionCollectionSection()}
     <section className="rr-section compact">
       <div className="rr-wrap">
         <div className="rr-section-head"><div><span className="rr-eyebrow">Choose your experience</span><h2 className="rr-section-title rr-display">Cinema, your way.</h2></div></div>
@@ -1124,7 +1102,6 @@ export function Reelroom() {
   </div><div className="rr-footer-bottom"><span>© 2025 REELROOM · Every Film. Your Way.</span><span>Original cinema, considered carefully.</span></div></div></footer>;
 
   const content = view === "home" ? renderHome()
-    : view === "criterion" ? renderCriterionCollection()
     : view === "browse" || view === "physical" || view === "digital" || view === "watchlist" ? renderCatalog()
     : view === "details" ? renderDetails()
     : view === "cart" ? renderCart()
