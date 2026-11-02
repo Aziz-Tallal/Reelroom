@@ -254,6 +254,8 @@ const UNIQUE_CRITERION_MOVIES = CRITERION_MOVIES.filter((movie) => {
   return true;
 });
 const MOVIES: Movie[] = [...BASE_MOVIES, ...CLASSIC_MOVIES, ...RECENT_MOVIES, ...UNIQUE_CRITERION_MOVIES];
+const CRITERION_SELECTION_TITLES = new Set(CRITERION_FILMS.map((film) => normalizeFilmTitle(film.title)));
+const CRITERION_SELECTION_MOVIES = MOVIES.filter((movie) => CRITERION_SELECTION_TITLES.has(normalizeFilmTitle(movie.title)));
 
 const HERO_POSTERS = [
   { movieId: "interstellar", image: "/__mockup/images/reelroom-interstellar.jpg", source: "https://en.wikipedia.org/wiki/Interstellar_(film)" },
@@ -554,7 +556,7 @@ function GravityField() {
 
 function Logo({ onClick }: { onClick: () => void }) {
   return <button className="rr-brand" onClick={onClick} aria-label="REELROOM home" style={{ background: "none", border: 0, padding: 0, cursor: "pointer", color: "inherit", textAlign: "left" }}>
-    <img className="rr-mark" src="/__mockup/images/reelroom-award-logo.png" alt="" aria-hidden="true" style={{ width: 48, height: 48, objectFit: "contain", flexShrink: 0 }}/>
+    <img className="rr-mark" src="/__mockup/images/reelroom-award-logo.png" alt="" aria-hidden="true" style={{ width: 60, height: 60, objectFit: "contain", flexShrink: 0 }}/>
     <span><span className="rr-wordmark">REELROOM</span><span className="rr-tagline">Every Film. Your Way.</span></span>
   </button>;
 }
@@ -905,6 +907,19 @@ export function Reelroom() {
       <div className="rr-wrap">
         <div className="rr-section-head"><div><span className="rr-eyebrow">Fresh off the reel</span><h2 className="rr-section-title rr-display">Recently added.</h2></div><button className="rr-text-link" onClick={() => navigate("browse")}>Browse all films <ArrowRight size={14}/></button></div>
         {movieGrid([...RECENT_MOVIES, MOVIES[4]], "six")}
+      </div>
+    </section>
+    <section className="rr-section rr-home-collection">
+      <div className="rr-wrap">
+        <div className="rr-section-head">
+          <div>
+            <span className="rr-eyebrow">Curated by Criterion</span>
+            <h2 className="rr-section-title rr-display">In the Criterion selection.</h2>
+            <p className="rr-collection-copy">A few highlights from Criterion’s Essential Art House selection, included in the full REELROOM archive.</p>
+          </div>
+          <button className="rr-text-link" onClick={() => navigate("browse")}>Browse all films <ArrowRight size={14}/></button>
+        </div>
+        {movieGrid(CRITERION_SELECTION_MOVIES.slice(0, 4), "four")}
       </div>
     </section>
     {homeCollectionSection("Digital only", "Platform picks", "Digital only.", "Compare illustrative platform options. The same title may also have a disc edition; availability is not retailer-verified.", MOVIES.filter((movie) => movie.platforms.length > 0))}
