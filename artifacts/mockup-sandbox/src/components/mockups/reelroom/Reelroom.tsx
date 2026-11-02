@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type CSSProperties, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent } from "react";
 import {
   ArrowDownRight, ArrowLeft, ArrowRight, Check, CheckCircle2,
   Clapperboard, Film, Heart, Menu, Minus, Play, Plus, RotateCcw, Search,
@@ -45,6 +45,7 @@ const HERO_POSTERS = [
   { movieId: "blade-runner-2049", image: "https://upload.wikimedia.org/wikipedia/en/9/9b/Blade_Runner_2049_poster.png", source: "https://en.wikipedia.org/wiki/Blade_Runner_2049" },
   { movieId: "oppenheimer", image: "https://upload.wikimedia.org/wikipedia/en/thumb/4/4a/Oppenheimer_%28film%29.jpg/500px-Oppenheimer_%28film%29.jpg", source: "https://en.wikipedia.org/wiki/Oppenheimer_(film)" },
   { movieId: "parasite", image: "https://upload.wikimedia.org/wikipedia/en/thumb/5/53/Parasite_%282019_film%29.png/500px-Parasite_%282019_film%29.png", source: "https://en.wikipedia.org/wiki/Parasite_(2019_film)" },
+  { movieId: "godfather", image: "https://upload.wikimedia.org/wikipedia/en/1/1c/Godfather_ver1.jpg", source: "https://en.wikipedia.org/wiki/The_Godfather" },
 ] as const;
 
 const FOUR_K_DEMO_TITLES = new Set(["interstellar", "blade-runner-2049", "dune-part-two", "dark-knight", "the-shining", "inception", "2001", "godfather", "the-batman", "oppenheimer"]);
@@ -62,6 +63,186 @@ const readStored = <T,>(key: string, fallback: T): T => {
 const saveStored = (key: string, value: unknown) => {
   try { localStorage.setItem(key, JSON.stringify(value)); } catch { /* storage can be unavailable in private browsing */ }
 };
+
+function GravityField() {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    const host = canvas?.parentElement?.parentElement;
+    const context = canvas?.getContext("2d");
+    if (!canvas || !host || !context) return;
+
+    type Star = {
+      x: number; y: number; vx: number; vy: number; driftX: number; driftY: number;
+      size: number; depth: number; phase: number; tint: number;
+    };
+    const motionPreference = window.matchMedia("(prefers-reduced-motion: reduce)");
+    let reduceMotion = motionPreference.matches;
+    let width = 0;
+    let height = 0;
+    let stars: Star[] = [];
+    let frame = 0;
+    let intersecting = true;
+    let pointerActive = false;
+    let pointerX = 0;
+    let pointerY = 0;
+    let disposed = false;
+    let seed = 93017;
+    const random = () => {
+      seed = (seed * 16807) % 2147483647;
+      return (seed - 1) / 2147483646;
+    };
+
+    const paint = (time: number, animate: boolean) => {
+      if (!width || !height || disposed) return;
+      context.clearRect(0, 0, width, height);
+
+      if (animate) {
+        for (const star of stars) {
+          if (pointerActive) {
+            const dx = pointerX - star.x;
+            const dy = pointerY - star.y;
+            const distance = Math.max(1, Math.hypot(dx, dy));
+            if (distance < 210) {
+              const pull = (1 - distance / 210) * 0.075 * star.depth;
+              star.vx += (dx / distance) * pull;
+              star.vy += (dy / distance) * pull;
+            }
+          }
+          star.vx *= 0.94;
+          star.vy *= 0.94;
+          star.x += star.driftX + star.vx;
+          star.y += star.driftY + star.vy;
+          if (star.x < 0) star.x += width;
+          if (star.x > width) star.x -= width;
+          if (star.y < 0) star.y += height;
+          if (star.y > height) star.y -= height;
+        }
+      }
+
+      const linkDistance = 132;
+      for (let i = 0; i < stars.length; i++) {
+        const a = stars[i];
+        for (let j = i + 1; j < stars.length; j++) {
+          const b = stars[j];
+          const distance = Math.hypot(a.x - b.x, a.y - b.y);
+          if (distance < linkDistance) {
+            context.strokeStyle = `rgba(177, 218, 200, ${(1 - distance / linkDistance) * 0.11})`;
+            context.lineWidth = 0.55;
+            context.beginPath();
+            context.moveTo(a.x, a.y);
+            context.lineTo(b.x, b.y);
+            context.stroke();
+          }
+        }
+      }
+
+      for (const star of stars) {
+        const shimmer = reduceMotion ? 0.78 : 0.55 + Math.sin(time * 0.0007 + star.phase) * 0.25;
+        const opacity = Math.min(0.88, shimmer * (0.34 + star.depth * 0.52));
+        const rgb = star.tint < 0.13 ? "0, 224, 84" : star.tint < 0.25 ? "230, 190, 137" : "225, 234, 232";
+        context.fillStyle = `rgba(${rgb}, ${opacity})`;
+        context.beginPath();
+        context.arc(star.x, star.y, star.size * (0.6 + star.depth * 0.8), 0, Math.PI * 2);
+        context.fill();
+      }
+    };
+
+    const resize = () => {
+      const rect = host.getBoundingClientRect();
+      if (!rect.width || !rect.height) return;
+      const oldWidth = width || rect.width;
+      const oldHeight = height || rect.height;
+      width = rect.width;
+      height = rect.height;
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      canvas.width = Math.round(width * dpr);
+      canvas.height = Math.round(height * dpr);
+      context.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+      if (!stars.length) {
+        const count = width < 720 ? 96 : 176;
+        stars = Array.from({ length: count }, () => {
+          const depth = random() ** 1.5;
+          const drift = random() * Math.PI * 2;
+          return {
+            x: random() * width, y: random() * height, vx: 0, vy: 0,
+            driftX: Math.cos(drift) * 0.045, driftY: Math.sin(drift) * 0.045,
+            size: 0.45 + random() * 0.65, depth, phase: random() * Math.PI * 2, tint: random(),
+          };
+        });
+      } else {
+        for (const star of stars) {
+          star.x *= width / oldWidth;
+          star.y *= height / oldHeight;
+        }
+      }
+      paint(performance.now(), false);
+    };
+
+    const tick = (time: number) => {
+      frame = 0;
+      if (disposed || reduceMotion || !intersecting || document.visibilityState !== "visible") return;
+      paint(time, true);
+      frame = window.requestAnimationFrame(tick);
+    };
+
+    const syncMotion = () => {
+      const shouldAnimate = !disposed && !reduceMotion && intersecting && document.visibilityState === "visible";
+      if (shouldAnimate && !frame) frame = window.requestAnimationFrame(tick);
+      if (!shouldAnimate && frame) {
+        window.cancelAnimationFrame(frame);
+        frame = 0;
+        paint(performance.now(), false);
+      }
+    };
+
+    const handlePointerMove = (event: PointerEvent) => {
+      const rect = host.getBoundingClientRect();
+      pointerX = event.clientX - rect.left;
+      pointerY = event.clientY - rect.top;
+      pointerActive = pointerX >= 0 && pointerX <= width && pointerY >= 0 && pointerY <= height;
+    };
+    const clearPointer = () => { pointerActive = false; };
+    const handleMotionChange = (event: MediaQueryListEvent) => {
+      reduceMotion = event.matches;
+      syncMotion();
+    };
+    const handleVisibility = () => syncMotion();
+    const intersectionObserver = typeof IntersectionObserver === "undefined"
+      ? null
+      : new IntersectionObserver((entries) => {
+        intersecting = entries.some((entry) => entry.isIntersecting);
+        syncMotion();
+      });
+    const resizeObserver = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(resize);
+
+    resize();
+    resizeObserver?.observe(host);
+    intersectionObserver?.observe(host);
+    host.addEventListener("pointermove", handlePointerMove, { passive: true });
+    host.addEventListener("pointerleave", clearPointer);
+    window.addEventListener("resize", resize);
+    document.addEventListener("visibilitychange", handleVisibility);
+    motionPreference.addEventListener("change", handleMotionChange);
+    syncMotion();
+
+    return () => {
+      disposed = true;
+      if (frame) window.cancelAnimationFrame(frame);
+      resizeObserver?.disconnect();
+      intersectionObserver?.disconnect();
+      host.removeEventListener("pointermove", handlePointerMove);
+      host.removeEventListener("pointerleave", clearPointer);
+      window.removeEventListener("resize", resize);
+      document.removeEventListener("visibilitychange", handleVisibility);
+      motionPreference.removeEventListener("change", handleMotionChange);
+    };
+  }, []);
+
+  return <div className="rr-hero-stars" aria-hidden="true"><canvas ref={canvasRef} /></div>;
+}
 
 function Logo({ onClick }: { onClick: () => void }) {
   return <button className="rr-brand" onClick={onClick} aria-label="REELROOM home" style={{ background: "none", border: 0, padding: 0, cursor: "pointer", color: "inherit", textAlign: "left" }}>
@@ -300,6 +481,7 @@ export function Reelroom() {
 
   const renderHome = () => <main>
     <section className="rr-hero">
+      <GravityField />
       <div className="rr-hero-poster-stage" aria-label="Featured film posters">
         {HERO_POSTERS.map((poster, index) => {
           const movie = movieFor(poster.movieId);
