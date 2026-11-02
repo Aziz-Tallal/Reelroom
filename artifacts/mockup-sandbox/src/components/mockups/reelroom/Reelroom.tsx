@@ -413,6 +413,14 @@ const HERO_POSTERS = [
   { movieId: "parasite", image: "/__mockup/images/reelroom-parasite.jpg", source: "https://en.wikipedia.org/wiki/Parasite_(2019_film)" },
   { movieId: "godfather", image: "/__mockup/images/reelroom-godfather.jpg", source: "https://en.wikipedia.org/wiki/The_Godfather" },
 ] as const;
+const INTRO_POSTER_SPREAD = [
+  { x: "-31vw", y: "-15vh", rotation: "-13deg" },
+  { x: "29vw", y: "-20vh", rotation: "11deg" },
+  { x: "-26vw", y: "17vh", rotation: "8deg" },
+  { x: "25vw", y: "15vh", rotation: "-10deg" },
+  { x: "-4vw", y: "-27vh", rotation: "6deg" },
+  { x: "5vw", y: "25vh", rotation: "-5deg" },
+] as const;
 const POSTER_SOURCES: Record<string, string> = {
   interstellar: "https://en.wikipedia.org/wiki/Interstellar_(film)",
   "blade-runner-2049": "https://en.wikipedia.org/wiki/Blade_Runner_2049",
@@ -1001,6 +1009,10 @@ function RotatingMovieShelf({ items, ariaLabel, columns = "four", renderMovie }:
 
 export function Reelroom() {
   const [view, setView] = useState<View>("home");
+  const [introVisible, setIntroVisible] = useState(true);
+  const [introClosing, setIntroClosing] = useState(false);
+  const introCloseTimerRef = useRef<number | null>(null);
+  const introHideTimerRef = useRef<number | null>(null);
   const [selectedMovieId, setSelectedMovieId] = useState(MOVIES[0].id);
   const [activePreviewId, setActivePreviewId] = useState<string | null>(null);
   const [selectedPreviewId, setSelectedPreviewId] = useState<string | null>(null);
@@ -1051,6 +1063,18 @@ export function Reelroom() {
   useEffect(() => { saveStored("reelroom-cart", cart); }, [cart]);
   useEffect(() => { saveStored("reelroom-orders", orders); }, [orders]);
   useEffect(() => { if (!toast) return; const timeout = window.setTimeout(() => setToast(""), 2700); return () => window.clearTimeout(timeout); }, [toast]);
+  useEffect(() => {
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      setIntroVisible(false);
+      return;
+    }
+    introCloseTimerRef.current = window.setTimeout(() => setIntroClosing(true), 5700);
+    introHideTimerRef.current = window.setTimeout(() => setIntroVisible(false), 6550);
+    return () => {
+      if (introCloseTimerRef.current !== null) window.clearTimeout(introCloseTimerRef.current);
+      if (introHideTimerRef.current !== null) window.clearTimeout(introHideTimerRef.current);
+    };
+  }, []);
   useEffect(() => {
     if (view !== "home") return;
     const hero = document.querySelector<HTMLElement>(".rr-hero");
@@ -1108,6 +1132,12 @@ export function Reelroom() {
     setAdded(false);
     if (next === "checkout") { setCheckoutStep(1); setCheckoutErrors({}); setConfirmedOrder(null); }
     window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+  const dismissIntro = () => {
+    setIntroClosing(true);
+    if (introCloseTimerRef.current !== null) window.clearTimeout(introCloseTimerRef.current);
+    if (introHideTimerRef.current !== null) window.clearTimeout(introHideTimerRef.current);
+    introHideTimerRef.current = window.setTimeout(() => setIntroVisible(false), 820);
   };
   const navigateCollection = (next: Collection) => {
     navigate("browse");
@@ -1550,10 +1580,44 @@ export function Reelroom() {
 
   return <PosterPreviewContext.Provider value={{ activeId: activePreviewId, setActiveId: setActivePreviewId, selectedId: selectedPreviewId, setSelectedId: setSelectedPreviewId }}>
     <div className={`reelroom ${activePreviewId ? "rr-has-active-preview" : ""}`} data-preview-active={activePreviewId ? "true" : "false"}>
-      {renderNav()}
-      {content}
-      {view !== "ad" && renderFooter()}
-      <div className="rr-toast-stack" aria-live="polite" aria-atomic="true">{toast && <div className="rr-toast"><CheckCircle2 size={18}/>{toast}</div>}</div>
+      <div className="rr-site-shell" inert={introVisible} aria-hidden={introVisible}>
+        {renderNav()}
+        {content}
+        {view !== "ad" && renderFooter()}
+        <div className="rr-toast-stack" aria-live="polite" aria-atomic="true">{toast && <div className="rr-toast"><CheckCircle2 size={18}/>{toast}</div>}</div>
+      </div>
+      {introVisible && <div className={`rr-intro ${introClosing ? "is-closing" : ""}`} role="dialog" aria-modal="true" aria-label="REELROOM opening animation">
+        <div className="rr-intro-atmosphere" aria-hidden="true"/>
+        <div className="rr-intro-ring rr-intro-ring-back" aria-hidden="true"/>
+        <div className="rr-intro-ring rr-intro-ring-front" aria-hidden="true"/>
+        <div className="rr-intro-poster-field" aria-hidden="true">
+          {HERO_POSTERS.map((poster, index) => {
+            const movie = movieFor(poster.movieId);
+            const spread = INTRO_POSTER_SPREAD[index];
+            return <div className="rr-intro-poster" key={poster.movieId} style={{
+              "--intro-x": spread.x,
+              "--intro-y": spread.y,
+              "--intro-rotation": spread.rotation,
+              "--intro-delay": `${index * 280}ms`,
+            } as CSSProperties}>
+              <img src={poster.image} alt="" fetchPriority="high"/>
+              <span>{movie.title}</span>
+            </div>;
+          })}
+        </div>
+        <div className="rr-intro-brand">
+          <span className="rr-intro-overline">A curated cinema archive · Kuwait</span>
+          <div className="rr-intro-lockup">
+            <img src="/__mockup/images/reelroom-award-logo.png" alt="" />
+            <span>REELROOM</span>
+          </div>
+          <span className="rr-intro-tagline">Every Film. Your Way.</span>
+        </div>
+        <button className="rr-intro-skip" onClick={dismissIntro} autoFocus aria-label="Skip opening animation">
+          Skip intro <ArrowRight size={14}/>
+        </button>
+        <div className="rr-intro-progress" aria-hidden="true"><span/></div>
+      </div>}
     </div>
   </PosterPreviewContext.Provider>;
 }
