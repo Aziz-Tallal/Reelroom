@@ -143,7 +143,14 @@ const CLASSIC_MOVIES: Movie[] = CLASSIC_ROWS.map(([id, title, year, genre, runti
   platforms: [],
   sourcePage: `https://en.wikipedia.org/wiki/${wikiSlug}`,
 }));
-const MOVIES: Movie[] = [...BASE_MOVIES, ...CLASSIC_MOVIES];
+const RECENT_MOVIES: Movie[] = [
+  { id: "anora", title: "Anora", year: 2024, genre: "Drama", runtime: 139, director: "Sean Baker", synopsis: "A young Brooklyn dancer enters a whirlwind marriage with the son of a Russian oligarch, then fights to reclaim control of her own story.", palette: ["#3a171b", "#ed9e75"], platforms: ["Apple TV", "Amazon Prime Video", "Google TV"], sourcePage: "https://en.wikipedia.org/wiki/Anora" },
+  { id: "the-brutalist", title: "The Brutalist", year: 2024, genre: "Drama", runtime: 215, director: "Brady Corbet", synopsis: "A Hungarian architect rebuilds his life in postwar America, where a powerful patron offers both opportunity and a new set of demands.", palette: ["#262321", "#c9a26d"], posterExt: "png", platforms: ["Apple TV", "Google TV"], sourcePage: "https://en.wikipedia.org/wiki/The_Brutalist" },
+  { id: "challengers", title: "Challengers", year: 2024, genre: "Drama", runtime: 131, director: "Luca Guadagnino", synopsis: "A former tennis prodigy turned coach brings two longtime rivals back together for a match that reopens old questions.", palette: ["#102d41", "#e99a43"], posterExt: "jpeg", platforms: ["Apple TV", "Amazon Prime Video", "YouTube Movies"], sourcePage: "https://en.wikipedia.org/wiki/Challengers_(film)" },
+  { id: "barbie", title: "Barbie", year: 2023, genre: "Comedy", runtime: 114, director: "Greta Gerwig", synopsis: "A day in the perfect world leads Barbie and Ken into a funny, strange trip through the real one.", palette: ["#e04d83", "#f1c2ad"], platforms: ["Apple TV", "Amazon Prime Video", "Google TV"], sourcePage: "https://en.wikipedia.org/wiki/Barbie_(film)" },
+  { id: "poor-things", title: "Poor Things", year: 2023, genre: "Fantasy", runtime: 141, director: "Yorgos Lanthimos", synopsis: "A young woman remade by an unorthodox scientist leaves home to discover the world on her own terms.", palette: ["#28364b", "#d59e74"], platforms: ["Apple TV", "Google TV", "YouTube Movies"], sourcePage: "https://en.wikipedia.org/wiki/Poor_Things_(film)" },
+];
+const MOVIES: Movie[] = [...BASE_MOVIES, ...CLASSIC_MOVIES, ...RECENT_MOVIES];
 
 const ACADEMY_AWARD_IDS = new Set([
   "interstellar", "blade-runner-2049", "dark-knight", "grand-budapest", "dune-part-two",
@@ -156,6 +163,7 @@ const ACADEMY_AWARD_IDS = new Set([
   "raging-bull", "cinema-paradiso", "deer-hunter", "sunrise", "it-happened-one-night",
   "rebecca", "philadelphia-story", "treasure-sierra-madre", "sunset-boulevard",
   "high-noon", "on-waterfront", "godfather-part-ii", "jaws", "alien", "amadeus",
+  "anora", "the-brutalist", "poor-things",
 ]);
 
 const CRITERION_FILMS: CriterionFilm[] = [
@@ -209,6 +217,16 @@ const CRITERION_FILMS: CriterionFilm[] = [
   { title: "The Wages of Fear", poster: "/__mockup/images/reelroom-criterion-the-wages-of-fear.jpg", source: "https://www.criterion.com/films/370-the-wages-of-fear" },
   { title: "The White Sheik", poster: "/__mockup/images/reelroom-criterion-the-white-sheik.jpg", source: "https://www.criterion.com/films/374-the-white-sheik" },
   { title: "Wild Strawberries", poster: "/__mockup/images/reelroom-criterion-wild-strawberries.jpg", source: "https://www.criterion.com/films/175-wild-strawberries" },
+  { title: "Anora", poster: "/__mockup/images/reelroom-criterion-anora.jpg", source: "https://www.criterion.com/films/34891-anora" },
+  { title: "Killers of the Flower Moon", poster: "/__mockup/images/reelroom-criterion-killers-of-the-flower-moon.jpg", source: "https://www.criterion.com/films/35293-killers-of-the-flower-moon" },
+  { title: "The Irishman", poster: "/__mockup/images/reelroom-criterion-the-irishman.jpg", source: "https://www.criterion.com/films/30553-the-irishman" },
+  { title: "The Grand Budapest Hotel", poster: "/__mockup/images/reelroom-criterion-the-grand-budapest-hotel.jpg", source: "https://www.criterion.com/films/29601-the-grand-budapest-hotel" },
+  { title: "The Royal Tenenbaums", poster: "/__mockup/images/reelroom-criterion-the-royal-tenenbaums.jpg", source: "https://www.criterion.com/films/230-the-royal-tenenbaums" },
+  { title: "Parasite", poster: "/__mockup/images/reelroom-criterion-parasite.jpg", source: "https://www.criterion.com/films/30619-parasite" },
+  { title: "Uncut Gems", poster: "/__mockup/images/reelroom-criterion-uncut-gems.jpg", source: "https://www.criterion.com/films/31917-uncut-gems" },
+  { title: "The Tree of Life", poster: "/__mockup/images/reelroom-criterion-the-tree-of-life.jpg", source: "https://www.criterion.com/films/28576-the-tree-of-life" },
+  { title: "Roma", poster: "/__mockup/images/reelroom-criterion-roma.jpg", source: "https://www.criterion.com/films/30124-roma" },
+  { title: "Memories of Murder", poster: "/__mockup/images/reelroom-criterion-memories-of-murder.jpg", source: "https://www.criterion.com/films/31458-memories-of-murder" },
 ];
 const slugifyCriterionTitle = (title: string) => title.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 const CRITERION_MOVIES: Movie[] = CRITERION_FILMS.map((film, index) => ({
@@ -218,7 +236,7 @@ const CRITERION_MOVIES: Movie[] = CRITERION_FILMS.map((film, index) => ({
   genre: "Criterion Collection",
   runtime: 0,
   director: "Criterion · Janus Films",
-  synopsis: "A title from Criterion’s Essential Art House selection. Choose a disc edition or a digital platform option through the REELROOM cart. Current editions, streaming rights, and availability are not verified.",
+  synopsis: "A Criterion Collection title in REELROOM’s expanded film archive. Choose a disc edition or a digital platform option through the REELROOM cart. Current editions, streaming rights, and availability are not verified.",
   palette: CLASSIC_PALETTES[index % CLASSIC_PALETTES.length],
   platforms: ["Apple TV", "Amazon Prime Video", "Google TV", "YouTube Movies"],
   sourcePage: film.source,
@@ -254,6 +272,7 @@ const POSTER_SOURCES: Record<string, string> = {
   "portrait-lady": "https://en.wikipedia.org/wiki/Portrait_of_a_Lady_on_Fire",
   "before-sunrise": "https://en.wikipedia.org/wiki/Before_Sunrise",
   ...Object.fromEntries(CLASSIC_MOVIES.map((movie) => [movie.id, movie.sourcePage ?? "https://en.wikipedia.org/wiki/Film"])),
+  ...Object.fromEntries(RECENT_MOVIES.map((movie) => [movie.id, movie.sourcePage ?? "https://en.wikipedia.org/wiki/Film"])),
   "sound-of-music": "https://commons.wikimedia.org/wiki/File:Sound_of_music.jpg",
 };
 
@@ -577,7 +596,7 @@ export function Reelroom() {
   const [format, setFormat] = useState("Any format");
   const [modeFilter, setModeFilter] = useState("Any mode");
   const [maxPrice, setMaxPrice] = useState("Any price");
-  const [sort, setSort] = useState("Featured");
+  const [sort, setSort] = useState("Newest");
   const [experience, setExperience] = useState<"Physical" | "Digital">("Physical");
   const [buyMode, setBuyMode] = useState<"Buy" | "Rent">("Buy");
   const [selectedOption, setSelectedOption] = useState("Blu-ray");
@@ -825,16 +844,16 @@ export function Reelroom() {
     <div className="rr-wrap">
       <div className="rr-criterion-heading">
         <div>
-          <span className="rr-eyebrow">The Criterion Collection · Essential Art House</span>
-          <h2 className="rr-section-title rr-display" id="rr-criterion-heading">Fifty frames in film history.</h2>
-          <p className="rr-collection-copy">A 50-film selection from Criterion’s Essential Art House: 50 Years of Janus Films box set. Select a poster to choose physical or digital demo options and add it to your REELROOM cart.</p>
+        <span className="rr-eyebrow">The Criterion Collection · Essential Art House &amp; more</span>
+        <h2 className="rr-section-title rr-display" id="rr-criterion-heading">Beyond the essentials.</h2>
+        <p className="rr-collection-copy">The original Essential Art House: 50 Years of Janus Films selection, joined by ten more Criterion editions. Choose any poster for REELROOM physical or digital demo options.</p>
         </div>
-        <span className="rr-criterion-count"><strong>{CRITERION_FILMS.length}</strong><span>essential films</span></span>
+      <span className="rr-criterion-count"><strong>{CRITERION_FILMS.length}</strong><span>Criterion films</span></span>
       </div>
-      <div className="rr-criterion-rail" role="list" aria-label="50 films from Criterion's Essential Art House collection">
+    <div className="rr-criterion-rail" role="list" aria-label={`${CRITERION_FILMS.length} Criterion Collection films`}>
         {CRITERION_FILMS.map((film, index) => <button type="button" className="rr-criterion-card" key={film.title} onClick={() => openDetails(CRITERION_MOVIES[index])} role="listitem" aria-label={`Choose purchase options for ${film.title}`}>
           <span className="rr-criterion-poster"><img src={film.poster} alt={`${film.title} Criterion Collection artwork`} loading={index < 7 ? "eager" : "lazy"} decoding="async"/></span>
-          <span className="rr-criterion-caption"><span className="rr-criterion-index">{String(index + 1).padStart(2, "0")} / 50</span><span className="rr-criterion-title">{film.title}</span><span className="rr-criterion-buy">Choose format <ArrowRight size={11}/></span></span>
+        <span className="rr-criterion-caption"><span className="rr-criterion-index">{String(index + 1).padStart(2, "0")} / {CRITERION_FILMS.length}</span><span className="rr-criterion-title">{film.title}</span><span className="rr-criterion-buy">Choose format <ArrowRight size={11}/></span></span>
         </button>)}
       </div>
       <p className="rr-criterion-credit">Artwork and film details © their respective rights holders. <a href="https://www.criterion.com/boxsets/305-essential-art-house-50-years-of-janus-films" target="_blank" rel="noopener noreferrer">Selection source: Criterion’s Essential Art House set <ArrowRight size={12}/></a><span>Options and prices in REELROOM are illustrative, not verified availability or streaming rights.</span></p>
@@ -896,8 +915,8 @@ export function Reelroom() {
     </section>
     <section className="rr-section">
       <div className="rr-wrap">
-        <div className="rr-section-head"><div><span className="rr-eyebrow">The room is open</span><h2 className="rr-section-title rr-display">A good place to start.</h2></div><button className="rr-text-link" onClick={() => navigate("browse")}>Browse all films <ArrowRight size={14}/></button></div>
-        {movieGrid([MOVIES[0], MOVIES[4], MOVIES[7], MOVIES[14], MOVIES[3], MOVIES[12]], "six")}
+        <div className="rr-section-head"><div><span className="rr-eyebrow">Fresh off the reel</span><h2 className="rr-section-title rr-display">Recently added.</h2></div><button className="rr-text-link" onClick={() => navigate("browse")}>Browse all films <ArrowRight size={14}/></button></div>
+        {movieGrid([...RECENT_MOVIES, MOVIES[4]], "six")}
       </div>
     </section>
     {homeCollectionSection("Digital only", "Platform picks", "Digital only.", "Compare illustrative platform options. The same title may also have a disc edition; availability is not retailer-verified.", MOVIES.filter((movie) => movie.platforms.length > 0))}

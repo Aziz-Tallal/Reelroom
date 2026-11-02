@@ -193,21 +193,15 @@
 }
 
 .reelroom .rr-criterion-rail {
-  display: flex;
-  gap: 14px;
-  overflow-x: auto;
-  overflow-y: hidden;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 28px 18px;
   padding: 2px 0 13px;
-  overscroll-behavior-x: contain;
-  scroll-snap-type: x mandatory;
-  scrollbar-color: rgba(0, 224, 84, .45) rgba(255, 255, 255, .06);
-  scrollbar-width: thin;
-  -webkit-overflow-scrolling: touch;
 }
 
 .reelroom .rr-criterion-card {
   display: block;
-  flex: 0 0 164px;
+  width: 100%;
   min-width: 0;
   padding: 0;
   border: 0;
@@ -215,7 +209,6 @@
   color: #e7eaec;
   font: inherit;
   text-align: left;
-  scroll-snap-align: start;
   cursor: pointer;
 }
 
@@ -328,6 +321,11 @@
 }
 
 @media (max-width: 767px) {
+  .reelroom .rr-criterion-rail {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 24px 14px;
+  }
+
   .reelroom .rr-criterion-heading {
     align-items: flex-start;
     gap: 12px;
@@ -343,15 +341,6 @@
     font-size: 23px;
   }
 
-  .reelroom .rr-criterion-card {
-    flex-basis: 39vw;
-    max-width: 160px;
-  }
-
-  .reelroom .rr-criterion-rail {
-    gap: 11px;
-    margin-right: -4px;
-  }
 }
 
 .reelroom .rr-category-tabs {
