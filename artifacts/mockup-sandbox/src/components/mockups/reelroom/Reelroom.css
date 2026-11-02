@@ -306,7 +306,7 @@
 
 .reelroom .rr-hero-poster:hover,
 .reelroom .rr-hero-poster:focus-visible {
-  transform: translate3d(var(--poster-shift-x, 0px), calc(var(--poster-shift-y, 0px) + var(--poster-scroll-y, 0px) - 8px), 0) rotate(var(--poster-tilt));
+  transform: translate3d(var(--poster-shift-x, 0px), calc(var(--poster-shift-y, 0px) + var(--poster-scroll-y, 0px) - 8px), 0) rotate(var(--poster-tilt)) scale(1.05);
 }
 
 .reelroom .rr-home-collection {
