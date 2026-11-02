@@ -141,7 +141,7 @@ function GravityField() {
       for (const star of stars) {
         const shimmer = reduceMotion ? 0.78 : 0.55 + Math.sin(time * 0.0007 + star.phase) * 0.25;
         const opacity = Math.min(0.88, shimmer * (0.34 + star.depth * 0.52));
-        const rgb = star.tint < 0.13 ? "0, 224, 84" : star.tint < 0.25 ? "230, 190, 137" : "225, 234, 232";
+        const rgb = star.tint < 0.13 ? "0, 224, 84" : star.tint < 0.24 ? "69, 155, 229" : star.tint < 0.34 ? "230, 190, 137" : "225, 234, 232";
         context.fillStyle = `rgba(${rgb}, ${opacity})`;
         context.beginPath();
         context.arc(star.x, star.y, star.size * (0.6 + star.depth * 0.8), 0, Math.PI * 2);
@@ -249,7 +249,7 @@ function Logo({ onClick }: { onClick: () => void }) {
     <svg className="rr-mark" viewBox="0 0 36 36" aria-hidden="true">
       <path d="M5 4.5h26v27H5z" fill="none" stroke="#00E054" strokeWidth="1.5"/>
       <path d="M10 27V9h8.1c4 0 6.2 1.9 6.2 5 0 2.5-1.4 4.1-3.9 4.7L26 27h-5.4l-4.9-7.8h-1.1V27zm4.6-11.6h3.2c1.3 0 2-.5 2-1.5s-.7-1.5-2-1.5h-3.2z" fill="#F2F4F6"/>
-      <path d="M2 10V2h8M26 2h8v8M34 26v8h-8M10 34H2v-8" fill="none" stroke="#00E054" strokeWidth="1"/>
+      <path d="M2 10V2h8M26 2h8v8M34 26v8h-8M10 34H2v-8" fill="none" stroke="var(--rr-blue)" strokeWidth="1"/>
     </svg>
     <span><span className="rr-wordmark">REELROOM</span><span className="rr-tagline">Every Film. Your Way.</span></span>
   </button>;
@@ -582,7 +582,7 @@ export function Reelroom() {
           <span className="rr-eyebrow">Choose your experience</span><h3>How do you want it?</h3>
           <div className="rr-choice-row">
             <button className={`rr-choice ${experience === "Physical" ? "active" : ""}`} onClick={() => setExperienceMode("Physical")}><strong>PHYSICAL</strong><span>Own or rent a disc</span></button>
-            <button className={`rr-choice ${experience === "Digital" ? "active" : ""}`} onClick={() => setExperienceMode("Digital")}><strong>DIGITAL</strong><span>Choose a platform</span></button>
+            <button className={`rr-choice ${experience === "Digital" ? "active blue" : ""}`} onClick={() => setExperienceMode("Digital")}><strong>DIGITAL</strong><span>Choose a platform</span></button>
           </div>
           <span className="rr-field-label">Select buy or rent</span>
           <div className="rr-choice-row">
@@ -594,7 +594,7 @@ export function Reelroom() {
             {options.map((option) => {
               const platformBase = ({ "Apple TV": 2.5, "Amazon Prime Video": 2.9, "Google TV": 2.3, "YouTube Movies": 2.2 } as Record<string, number>)[option] ?? 2.5;
               const optionPrice = experience === "Physical" ? PHYSICAL_PRICE[buyMode][option] : Number((platformBase * (buyMode === "Buy" ? 3.2 : 1)).toFixed(3));
-              return <button key={option} className={`rr-choice ${selectedOption === option ? "active" : ""}`} onClick={() => setOption(option)}><span><strong>{option}</strong><span>{experience === "Physical" ? (option === "DVD" ? "Standard definition" : option === "Blu-ray" ? "High definition" : "Ultra high definition") : `${buyMode} · demo listing`}</span></span><span className="rr-selection-price">{money(optionPrice)}</span></button>;
+              return <button key={option} className={`rr-choice ${selectedOption === option ? `active ${experience === "Digital" ? "blue" : ""}` : ""}`} onClick={() => setOption(option)}><span><strong>{option}</strong><span>{experience === "Physical" ? (option === "DVD" ? "Standard definition" : option === "Blu-ray" ? "High definition" : "Ultra high definition") : `${buyMode} · demo listing`}</span></span><span className="rr-selection-price">{money(optionPrice)}</span></button>;
             })}
           </div>
           {buyMode === "Rent" && <p className="rr-rental-note">{experience === "Physical" ? "7-day disc rental. Return date will be shown on your demo order." : "Example terms: 30 days to begin, 48 hours to finish after playback starts."}</p>}
@@ -654,7 +654,7 @@ export function Reelroom() {
 
   const renderAbout = () => <main className="rr-wrap">
     <div className="rr-page-head"><span className="rr-eyebrow">A note from the projection booth</span><h1>One film. Every way to watch it.</h1><p>REELROOM is a curated cinema archive for people who care about what they watch—and how they keep it.</p></div>
-    <section className="rr-section"><div className="rr-story"><div><span className="rr-eyebrow">The idea</span><h2>Less hunting.<br/>More settling in.</h2><p>Finding a favorite film should feel like browsing a thoughtfully kept collection, not opening another endless storefront. REELROOM brings disc formats and digital platform options into one simple, considered view.</p><p>Choose a physical edition for the shelf or a digital platform preference for the evening. The experience is designed around the film, then gets out of the way.</p><button className="rr-button" style={{ marginTop: 19 }} onClick={() => navigate("browse")}>Explore the archive <ArrowRight size={14}/></button></div><div className="rr-brand-spec"><span className="rr-eyebrow">Brand & design</span><div className="rr-spec-row"><strong>Personality</strong><span>Cinematic · Curated · Effortless</span></div><div className="rr-spec-row"><strong>Mark</strong><span>An original R held inside a restrained film frame.</span></div><div className="rr-spec-row"><strong>Palette</strong><span>Cinema Black anchors the room; Reel Green is the clear signal. Film Orange is saved for selected highlights.</span></div><div className="rr-spec-row"><strong>Type</strong><span>Space Grotesk for confident film titles; Inter for readable, quiet utility.</span></div><div className="rr-spec-row"><strong>Principle</strong><span>Poster-first discovery. No clutter between you and the next film.</span></div></div></div></section>
+    <section className="rr-section"><div className="rr-story"><div><span className="rr-eyebrow">The idea</span><h2>Less hunting.<br/>More settling in.</h2><p>Finding a favorite film should feel like browsing a thoughtfully kept collection, not opening another endless storefront. REELROOM brings disc formats and digital platform options into one simple, considered view.</p><p>Choose a physical edition for the shelf or a digital platform preference for the evening. The experience is designed around the film, then gets out of the way.</p><button className="rr-button" style={{ marginTop: 19 }} onClick={() => navigate("browse")}>Explore the archive <ArrowRight size={14}/></button></div><div className="rr-brand-spec"><span className="rr-eyebrow">Brand & design</span><div className="rr-spec-row"><strong>Personality</strong><span>Cinematic · Curated · Effortless</span></div><div className="rr-spec-row"><strong>Mark</strong><span>An original R held inside a restrained film frame.</span></div><div className="rr-spec-row"><strong>Palette</strong><span>Cinema Black anchors the room; Reel Green marks the essentials, Projection Blue signals digital choices and focus, and Film Orange punctuates selected highlights.</span></div><div className="rr-spec-row"><strong>Type</strong><span>Space Grotesk for confident film titles; Inter for readable, quiet utility.</span></div><div className="rr-spec-row"><strong>Principle</strong><span>Poster-first discovery. No clutter between you and the next film.</span></div></div></div></section>
     <section className="rr-section compact"><div className="rr-promo"><div><span className="rr-eyebrow">How the demo works</span><h2>Availability and prices are examples—not offers.</h2></div><button className="rr-button secondary" onClick={() => navigate("contact")}>Ask us a question <ArrowRight size={14}/></button></div></section>
   </main>;
 
