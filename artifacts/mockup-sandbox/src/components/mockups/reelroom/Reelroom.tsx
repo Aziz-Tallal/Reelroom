@@ -5,6 +5,7 @@ import {
   ShoppingBag, ShoppingCart, Trash2, X,
 } from "lucide-react";
 import "./_group.css";
+import "./Reelroom.css";
 
 type Movie = {
   id: string; title: string; year: number; genre: string; runtime: number;
@@ -40,13 +41,33 @@ const MOVIES: Movie[] = [
 ];
 
 const HERO_POSTERS = [
-  { movieId: "interstellar", image: "https://upload.wikimedia.org/wikipedia/en/b/bc/Interstellar_film_poster.jpg", source: "https://en.wikipedia.org/wiki/Interstellar_(film)" },
-  { movieId: "dune-part-two", image: "https://upload.wikimedia.org/wikipedia/en/thumb/5/52/Dune_Part_Two_poster.jpeg/500px-Dune_Part_Two_poster.jpeg", source: "https://en.wikipedia.org/wiki/Dune:_Part_Two" },
-  { movieId: "blade-runner-2049", image: "https://upload.wikimedia.org/wikipedia/en/9/9b/Blade_Runner_2049_poster.png", source: "https://en.wikipedia.org/wiki/Blade_Runner_2049" },
-  { movieId: "oppenheimer", image: "https://upload.wikimedia.org/wikipedia/en/thumb/4/4a/Oppenheimer_%28film%29.jpg/500px-Oppenheimer_%28film%29.jpg", source: "https://en.wikipedia.org/wiki/Oppenheimer_(film)" },
-  { movieId: "parasite", image: "https://upload.wikimedia.org/wikipedia/en/thumb/5/53/Parasite_%282019_film%29.png/500px-Parasite_%282019_film%29.png", source: "https://en.wikipedia.org/wiki/Parasite_(2019_film)" },
-  { movieId: "godfather", image: "https://upload.wikimedia.org/wikipedia/en/1/1c/Godfather_ver1.jpg", source: "https://en.wikipedia.org/wiki/The_Godfather" },
+  { movieId: "interstellar", image: "/__mockup/images/reelroom-interstellar.jpg", source: "https://en.wikipedia.org/wiki/Interstellar_(film)" },
+  { movieId: "dune-part-two", image: "/__mockup/images/reelroom-dune-part-two.jpg", source: "https://en.wikipedia.org/wiki/Dune:_Part_Two" },
+  { movieId: "blade-runner-2049", image: "/__mockup/images/reelroom-blade-runner-2049.jpg", source: "https://en.wikipedia.org/wiki/Blade_Runner_2049" },
+  { movieId: "oppenheimer", image: "/__mockup/images/reelroom-oppenheimer.jpg", source: "https://en.wikipedia.org/wiki/Oppenheimer_(film)" },
+  { movieId: "parasite", image: "/__mockup/images/reelroom-parasite.jpg", source: "https://en.wikipedia.org/wiki/Parasite_(2019_film)" },
+  { movieId: "godfather", image: "/__mockup/images/reelroom-godfather.jpg", source: "https://en.wikipedia.org/wiki/The_Godfather" },
 ] as const;
+const POSTER_SOURCES: Record<string, string> = {
+  interstellar: "https://en.wikipedia.org/wiki/Interstellar_(film)",
+  "blade-runner-2049": "https://en.wikipedia.org/wiki/Blade_Runner_2049",
+  "dark-knight": "https://en.wikipedia.org/wiki/The_Dark_Knight",
+  "grand-budapest": "https://en.wikipedia.org/wiki/The_Grand_Budapest_Hotel",
+  "dune-part-two": "https://en.wikipedia.org/wiki/Dune:_Part_Two",
+  "the-shining": "https://en.wikipedia.org/wiki/The_Shining_(film)",
+  whiplash: "https://en.wikipedia.org/wiki/Whiplash_(2014_film)",
+  parasite: "https://en.wikipedia.org/wiki/Parasite_(2019_film)",
+  inception: "https://en.wikipedia.org/wiki/Inception",
+  "2001": "https://en.wikipedia.org/wiki/2001:_A_Space_Odyssey_(film)",
+  godfather: "https://en.wikipedia.org/wiki/The_Godfather",
+  "pulp-fiction": "https://en.wikipedia.org/wiki/Pulp_Fiction",
+  "spirited-away": "https://en.wikipedia.org/wiki/Spirited_Away",
+  "the-batman": "https://en.wikipedia.org/wiki/The_Batman_(film)",
+  oppenheimer: "https://en.wikipedia.org/wiki/Oppenheimer_(film)",
+  "everything-everywhere": "https://en.wikipedia.org/wiki/Everything_Everywhere_All_at_Once",
+  "portrait-lady": "https://en.wikipedia.org/wiki/Portrait_of_a_Lady_on_Fire",
+  "before-sunrise": "https://en.wikipedia.org/wiki/Before_Sunrise",
+};
 
 const FOUR_K_DEMO_TITLES = new Set(["interstellar", "blade-runner-2049", "dune-part-two", "dark-knight", "the-shining", "inception", "2001", "godfather", "the-batman", "oppenheimer"]);
 const PLATFORM_RENT_PRICE: Record<string, number> = { "Apple TV": 2.5, "Amazon Prime Video": 2.9, "Google TV": 2.3, "YouTube Movies": 2.2 };
@@ -257,6 +278,7 @@ function Logo({ onClick }: { onClick: () => void }) {
 
 function Poster({ movie, onClick, saved, onFavorite }: { movie: Movie; onClick: () => void; saved: boolean; onFavorite: () => void }) {
   return <div className="rr-poster" role="button" tabIndex={0} onClick={onClick} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") onClick(); }} style={{ "--poster-bg": `linear-gradient(148deg, ${movie.palette[0]}, #11181c 78%)`, "--poster-glow": movie.palette[1] } as CSSProperties} aria-label={`View ${movie.title} details`}>
+    <img className="rr-poster-image" src={`/__mockup/images/reelroom-${movie.id}.jpg`} alt={`${movie.title} theatrical poster`} loading="lazy" onError={(event) => event.currentTarget.classList.add("poster-error")}/>
     <div className="rr-poster-art" />
     <span className="rr-poster-mark">REELROOM ARCHIVE</span>
     <button className={`rr-fav ${saved ? "saved" : ""}`} aria-label={saved ? `Remove ${movie.title} from watchlist` : `Add ${movie.title} to watchlist`} onClick={(event) => { event.stopPropagation(); onFavorite(); }}>
@@ -558,7 +580,10 @@ export function Reelroom() {
         <div className="rr-results-line"><span>{list.length} films in this frame</span><button className="rr-text-link" onClick={resetFilters}>Clear filters <RotateCcw size={12}/></button></div>
         {movieGrid(list, "six")}
       </>}
-      <div style={{ padding: "30px 0 55px" }}><p className="rr-demo-note">Catalog availability, format options, platform listings, and every KWD amount are illustrative demonstration data—not verified retailer inventory or streaming rights.</p></div>
+       <div style={{ padding: "30px 0 55px" }}>
+         <p className="rr-demo-note">Catalog availability, format options, platform listings, and every KWD amount are illustrative demonstration data—not verified retailer inventory or streaming rights.</p>
+         <details className="rr-poster-credits"><summary>Poster sources &amp; image rights</summary><p>Film poster artwork is shown for identification and belongs to its respective rights holders. Sources link to the film entries where each image was found.</p><div>{MOVIES.map((movie) => <a key={movie.id} href={POSTER_SOURCES[movie.id]} target="_blank" rel="noopener noreferrer">{movie.title}</a>)}</div></details>
+       </div>
     </main>;
   };
 
@@ -616,7 +641,7 @@ export function Reelroom() {
           <div>{cart.map((item) => {
             const movie = movieFor(item.movieId);
             return <div className="rr-cart-item" key={item.key}>
-              <div className="rr-poster" style={{ "--poster-bg": `linear-gradient(148deg,${movie.palette[0]},#11181c 78%)`, "--poster-glow": movie.palette[1] } as CSSProperties}><div className="rr-poster-art"/><span className="rr-poster-title">{movie.title}</span></div>
+              <div className="rr-poster" style={{ "--poster-bg": `linear-gradient(148deg,${movie.palette[0]},#11181c 78%)`, "--poster-glow": movie.palette[1] } as CSSProperties}><img className="rr-poster-image" src={`/__mockup/images/reelroom-${movie.id}.jpg`} alt={`${movie.title} theatrical poster`} loading="lazy"/><div className="rr-poster-art"/><span className="rr-poster-title">{movie.title}</span></div>
               <div><h3 className="rr-cart-name">{movie.title}</h3><p className="rr-cart-desc">{item.experience} · {item.mode} · {item.option}</p><p className="rr-cart-desc">{item.rental}</p>{item.experience === "Physical" && item.mode === "Buy" && <div className="rr-quantity" style={{ marginTop: 8 }}><button aria-label={`Decrease ${movie.title} quantity`} onClick={() => updateQuantity(item.key, item.quantity - 1)}><Minus size={12}/></button><span>{item.quantity}</span><button aria-label={`Increase ${movie.title} quantity`} onClick={() => updateQuantity(item.key, item.quantity + 1)}><Plus size={12}/></button></div>}</div>
               <strong className="rr-price rr-cart-price">{money(item.price * item.quantity)}</strong>
               <button className="rr-icon-btn" aria-label={`Remove ${movie.title}`} onClick={() => removeCartItem(item.key)}><Trash2 size={16}/></button>
