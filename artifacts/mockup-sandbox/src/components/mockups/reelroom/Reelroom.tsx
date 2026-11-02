@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent, type PointerEvent as ReactPointerEvent } from "react";
 import {
   ArrowDownRight, ArrowLeft, ArrowRight, Check, CheckCircle2,
   Clapperboard, Film, Heart, Menu, Minus, Play, Plus, RotateCcw, Search,
@@ -98,11 +98,16 @@ function GravityField() {
       x: number; y: number; vx: number; vy: number; driftX: number; driftY: number;
       size: number; depth: number; phase: number; tint: number;
     };
+    type GeometryMark = {
+      x: number; y: number; radius: number; depth: number; angle: number;
+      sides: number; tint: number; ring: boolean;
+    };
     const motionPreference = window.matchMedia("(prefers-reduced-motion: reduce)");
     let reduceMotion = motionPreference.matches;
     let width = 0;
     let height = 0;
     let stars: Star[] = [];
+    let geometryMarks: GeometryMark[] = [];
     let frame = 0;
     let intersecting = true;
     let pointerActive = false;
@@ -159,6 +164,50 @@ function GravityField() {
         }
       }
 
+      for (const mark of geometryMarks) {
+        const dx = mark.x - pointerX;
+        const dy = mark.y - pointerY;
+        const distance = Math.max(1, Math.hypot(dx, dy));
+        const proximity = pointerActive ? Math.max(0, 1 - distance / 360) : 0;
+        const repel = !reduceMotion ? proximity * mark.depth * 18 : 0;
+        const x = mark.x + (dx / distance) * repel;
+        const y = mark.y + (dy / distance) * repel;
+        const radius = mark.radius * (1 + (!reduceMotion ? proximity * 0.08 : 0));
+        const rgb = mark.tint < 0.48 ? "69, 155, 229" : "0, 224, 84";
+        const opacity = 0.11 + mark.depth * 0.12 + proximity * 0.13;
+
+        context.save();
+        context.translate(x, y);
+        context.rotate(mark.angle + (animate ? time * 0.000035 * mark.depth : 0));
+        context.strokeStyle = `rgba(${rgb}, ${opacity})`;
+        context.lineWidth = mark.depth > 0.72 ? 0.9 : 0.65;
+        context.beginPath();
+        for (let side = 0; side < mark.sides; side++) {
+          const angle = (Math.PI * 2 * side) / mark.sides - Math.PI / 2;
+          const pointX = Math.cos(angle) * radius;
+          const pointY = Math.sin(angle) * radius;
+          if (side === 0) context.moveTo(pointX, pointY);
+          else context.lineTo(pointX, pointY);
+        }
+        context.closePath();
+        context.stroke();
+        if (mark.ring) {
+          context.beginPath();
+          context.arc(0, 0, radius * 0.52, 0, Math.PI * 2);
+          context.strokeStyle = `rgba(${rgb}, ${opacity * 0.72})`;
+          context.stroke();
+        } else {
+          context.beginPath();
+          context.moveTo(-radius * 0.28, 0);
+          context.lineTo(radius * 0.28, 0);
+          context.moveTo(0, -radius * 0.28);
+          context.lineTo(0, radius * 0.28);
+          context.strokeStyle = `rgba(${rgb}, ${opacity * 0.58})`;
+          context.stroke();
+        }
+        context.restore();
+      }
+
       for (const star of stars) {
         const shimmer = reduceMotion ? 0.78 : 0.55 + Math.sin(time * 0.0007 + star.phase) * 0.25;
         const opacity = Math.min(0.88, shimmer * (0.34 + star.depth * 0.52));
@@ -193,10 +242,25 @@ function GravityField() {
             size: 0.45 + random() * 0.65, depth, phase: random() * Math.PI * 2, tint: random(),
           };
         });
+        const geometryCount = width < 720 ? 12 : 26;
+        geometryMarks = Array.from({ length: geometryCount }, () => ({
+          x: width * (0.43 + random() * 0.57),
+          y: random() * height,
+          radius: 9 + random() * 26,
+          depth: 0.3 + random() * 0.7,
+          angle: random() * Math.PI,
+          sides: 3 + Math.floor(random() * 4),
+          tint: random(),
+          ring: random() > 0.58,
+        }));
       } else {
         for (const star of stars) {
           star.x *= width / oldWidth;
           star.y *= height / oldHeight;
+        }
+        for (const mark of geometryMarks) {
+          mark.x *= width / oldWidth;
+          mark.y *= height / oldHeight;
         }
       }
       paint(performance.now(), false);
@@ -224,8 +288,12 @@ function GravityField() {
       pointerX = event.clientX - rect.left;
       pointerY = event.clientY - rect.top;
       pointerActive = pointerX >= 0 && pointerX <= width && pointerY >= 0 && pointerY <= height;
+      if (reduceMotion) paint(performance.now(), false);
     };
-    const clearPointer = () => { pointerActive = false; };
+    const clearPointer = () => {
+      pointerActive = false;
+      if (reduceMotion) paint(performance.now(), false);
+    };
     const handleMotionChange = (event: MediaQueryListEvent) => {
       reduceMotion = event.matches;
       syncMotion();
@@ -501,8 +569,31 @@ export function Reelroom() {
     {items.map((movie) => <MovieCard key={movie.id} movie={movie} saved={watchlist.includes(movie.id)} onDetails={() => openDetails(movie)} onFavorite={() => toggleFavorite(movie.id)}/>)}
   </div> : <div className="rr-empty"><Film size={27} color="#00E054"/><h2>No films in this frame.</h2><p>Try a different search or clear a few filters to find your next favorite.</p><button className="rr-button secondary small" onClick={resetFilters}>Clear filters</button></div>;
 
+  const handleHeroPointerMove = (event: ReactPointerEvent<HTMLElement>) => {
+    if (event.pointerType !== "mouse" && event.pointerType !== "pen") return;
+    const hero = event.currentTarget;
+    const rect = hero.getBoundingClientRect();
+    const pointerX = ((event.clientX - rect.left) / rect.width - 0.5) * 2;
+    const pointerY = ((event.clientY - rect.top) / rect.height - 0.5) * 2;
+    const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+    hero.querySelectorAll<HTMLElement>(".rr-hero-poster").forEach((poster, index) => {
+      const depth = 0.52 + (index % 4) * 0.15;
+      const offsetX = reduceMotion ? 0 : -pointerX * 8 * depth;
+      const offsetY = reduceMotion ? 0 : -pointerY * 6 * depth;
+      poster.style.setProperty("--poster-shift-x", `${offsetX.toFixed(2)}px`);
+      poster.style.setProperty("--poster-shift-y", `${offsetY.toFixed(2)}px`);
+    });
+  };
+  const handleHeroPointerLeave = (event: ReactPointerEvent<HTMLElement>) => {
+    event.currentTarget.querySelectorAll<HTMLElement>(".rr-hero-poster").forEach((poster) => {
+      poster.style.setProperty("--poster-shift-x", "0px");
+      poster.style.setProperty("--poster-shift-y", "0px");
+    });
+  };
+
   const renderHome = () => <main>
-    <section className="rr-hero">
+    <section className="rr-hero" onPointerMove={handleHeroPointerMove} onPointerLeave={handleHeroPointerLeave}>
       <GravityField />
       <div className="rr-hero-poster-stage" aria-label="Featured film posters">
         {HERO_POSTERS.map((poster, index) => {

@@ -129,3 +129,21 @@
     padding: 12px;
   }
 }
+
+.reelroom .rr-hero-poster {
+  transform: translate3d(var(--poster-shift-x, 0px), var(--poster-shift-y, 0px), 0) rotate(var(--poster-tilt));
+  transition: transform .22s cubic-bezier(.2, .72, .2, 1), box-shadow .28s ease;
+  will-change: transform;
+}
+
+.reelroom .rr-hero-poster:hover,
+.reelroom .rr-hero-poster:focus-visible {
+  transform: translate3d(var(--poster-shift-x, 0px), calc(var(--poster-shift-y, 0px) - 8px), 0) rotate(var(--poster-tilt));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reelroom .rr-hero-poster {
+    transition: none;
+    will-change: auto;
+  }
+}
