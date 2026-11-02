@@ -125,6 +125,12 @@
 }
 
 @media (max-width: 767px) {
+  .reelroom .rr-shelf-carousel {
+    --rr-shelf-columns: 2;
+    --rr-shelf-gap: 14px;
+    --rr-shelf-card-size: calc((100% - 14px) / 2);
+  }
+
   .reelroom .rr-poster-credits {
     padding: 12px;
   }
@@ -155,6 +161,50 @@
   color: #929da5;
   font-size: 11px;
   line-height: 1.65;
+}
+
+.reelroom .rr-shelf-carousel {
+  --rr-shelf-columns: 4;
+  --rr-shelf-gap: 18px;
+  --rr-shelf-card-size: calc((100% - 54px) / 4);
+  width: 100%;
+  overflow: hidden;
+}
+
+.reelroom .rr-shelf-carousel.six {
+  --rr-shelf-columns: 6;
+  --rr-shelf-card-size: calc((100% - 90px) / 6);
+}
+
+@media (max-width: 767px) {
+  .reelroom .rr-shelf-carousel,
+  .reelroom .rr-shelf-carousel.six {
+    --rr-shelf-columns: 2;
+    --rr-shelf-gap: 14px;
+    --rr-shelf-card-size: calc((100% - 14px) / 2);
+  }
+}
+
+.reelroom .rr-shelf-track {
+  display: grid;
+  width: 100%;
+  grid-auto-flow: column;
+  grid-auto-columns: var(--rr-shelf-card-size);
+  gap: var(--rr-shelf-gap);
+  transition: transform 980ms cubic-bezier(.22, .72, .18, 1);
+  will-change: transform;
+}
+
+.reelroom .rr-shelf-track.snapping {
+  transition: none;
+}
+
+.reelroom .rr-shelf-slide {
+  min-width: 0;
+}
+
+.reelroom .rr-shelf-slide > .rr-movie-card {
+  height: 100%;
 }
 
 .reelroom .rr-category-tabs {
@@ -207,6 +257,11 @@
 
 @media (prefers-reduced-motion: reduce) {
   .reelroom .rr-hero-poster {
+    transition: none;
+    will-change: auto;
+  }
+
+  .reelroom .rr-shelf-track {
     transition: none;
     will-change: auto;
   }

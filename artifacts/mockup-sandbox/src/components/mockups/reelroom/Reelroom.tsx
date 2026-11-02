@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent, type PointerEvent as ReactPointerEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent, type PointerEvent as ReactPointerEvent, type ReactNode, type TransitionEvent as ReactTransitionEvent } from "react";
 import {
   ArrowDownRight, ArrowLeft, ArrowRight, Check, CheckCircle2,
   Clapperboard, Film, Heart, Menu, Minus, Play, Plus, RotateCcw, Search,
@@ -591,6 +591,99 @@ function MovieCard({ movie, onDetails, saved, onFavorite }: { movie: Movie; onDe
   </article>;
 }
 
+function RotatingMovieShelf({ items, ariaLabel, columns = "four", renderMovie }: {
+  items: Movie[];
+  ariaLabel: string;
+  columns?: "four" | "six";
+  renderMovie: (movie: Movie) => ReactNode;
+}) {
+  const viewportRef = useRef<HTMLDivElement>(null);
+  const [offset, setOffset] = useState(0);
+  const [step, setStep] = useState(0);
+  const [visibleCount, setVisibleCount] = useState(columns === "six" ? 6 : 4);
+  const [paused, setPaused] = useState(false);
+  const [sliding, setSliding] = useState(false);
+  const [snapping, setSnapping] = useState(false);
+  const [reducedMotion, setReducedMotion] = useState(false);
+  const total = items.length;
+  const currentOffset = total ? offset % total : 0;
+  const shouldRotate = total > visibleCount && step > 0 && !reducedMotion;
+
+  useEffect(() => {
+    const viewport = viewportRef.current;
+    if (!viewport) return;
+    const measure = () => {
+      const computed = window.getComputedStyle(viewport);
+      const count = Number.parseInt(computed.getPropertyValue("--rr-shelf-columns"), 10) || 4;
+      const gap = Number.parseFloat(computed.getPropertyValue("--rr-shelf-gap")) || 18;
+      const width = viewport.clientWidth;
+      const nextStep = (width - gap * (count - 1)) / count + gap;
+      setVisibleCount(count);
+      setStep(Math.max(0, nextStep));
+    };
+    measure();
+    const resizeObserver = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(measure);
+    resizeObserver?.observe(viewport);
+    window.addEventListener("resize", measure);
+    return () => {
+      resizeObserver?.disconnect();
+      window.removeEventListener("resize", measure);
+    };
+  }, []);
+
+  useEffect(() => {
+    const preference = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const syncPreference = () => setReducedMotion(preference.matches);
+    syncPreference();
+    preference.addEventListener("change", syncPreference);
+    return () => preference.removeEventListener("change", syncPreference);
+  }, []);
+
+  useEffect(() => {
+    if (paused || !shouldRotate || sliding) return;
+    const timer = window.setTimeout(() => setSliding(true), 30000);
+    return () => window.clearTimeout(timer);
+  }, [currentOffset, paused, shouldRotate, sliding]);
+
+  const visibleItems = useMemo(() => {
+    if (!total) return [];
+    const count = Math.min(total, visibleCount + (shouldRotate ? 1 : 0));
+    return Array.from({ length: count }, (_, index) => items[(currentOffset + index) % total]);
+  }, [currentOffset, items, shouldRotate, total, visibleCount]);
+
+  const finishSlide = (event: ReactTransitionEvent<HTMLDivElement>) => {
+    if (event.target !== event.currentTarget || event.propertyName !== "transform" || !sliding) return;
+    setOffset((current) => (current + 1) % total);
+    setSliding(false);
+    setSnapping(true);
+    window.requestAnimationFrame(() => window.requestAnimationFrame(() => setSnapping(false)));
+  };
+
+  return <div
+    ref={viewportRef}
+    className={`rr-shelf-carousel ${columns}`}
+    role="region"
+    aria-label={ariaLabel}
+    aria-roledescription="carousel"
+    onMouseEnter={() => setPaused(true)}
+    onMouseLeave={() => setPaused(false)}
+    onFocusCapture={() => setPaused(true)}
+    onBlurCapture={(event) => {
+      if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setPaused(false);
+    }}
+    style={{ "--rr-shelf-step": `${step}px` } as CSSProperties}
+  >
+    <div
+      className={`rr-shelf-track ${snapping ? "snapping" : ""}`}
+      style={{ transform: `translate3d(${sliding && shouldRotate ? -step : 0}px, 0, 0)` }}
+      onTransitionEnd={finishSlide}
+      aria-live="off"
+    >
+      {visibleItems.map((movie) => <div className="rr-shelf-slide" key={movie.id}>{renderMovie(movie)}</div>)}
+    </div>
+  </div>;
+}
+
 export function Reelroom() {
   const [view, setView] = useState<View>("home");
   const [selectedMovieId, setSelectedMovieId] = useState(MOVIES[0].id);
@@ -840,13 +933,19 @@ export function Reelroom() {
   const movieGrid = (items: Movie[], columns = "six") => items.length ? <div className={`rr-grid ${columns === "four" ? "four" : ""}`}>
     {items.map((movie) => <MovieCard key={movie.id} movie={movie} saved={watchlist.includes(movie.id)} onDetails={() => openDetails(movie)} onFavorite={() => toggleFavorite(movie.id)}/>)}
   </div> : <div className="rr-empty"><Film size={27} color="#00E054"/><h2>No films in this frame.</h2><p>Try a different search or clear a few filters to find your next favorite.</p><button className="rr-button secondary small" onClick={resetFilters}>Clear filters</button></div>;
+  const rotatingMovieGrid = (items: Movie[], columns: "four" | "six", ariaLabel: string) => items.length ? <RotatingMovieShelf
+    items={items}
+    columns={columns}
+    ariaLabel={ariaLabel}
+    renderMovie={(movie) => <MovieCard movie={movie} saved={watchlist.includes(movie.id)} onDetails={() => openDetails(movie)} onFavorite={() => toggleFavorite(movie.id)}/>}
+  /> : movieGrid(items, columns);
   const homeCollectionSection = (name: Collection, eyebrow: string, title: string, copy: string, films: Movie[]) => <section className="rr-section rr-home-collection" key={name}>
     <div className="rr-wrap">
       <div className="rr-section-head">
         <div><span className="rr-eyebrow">{eyebrow}</span><h2 className="rr-section-title rr-display">{title}</h2><p className="rr-collection-copy">{copy}</p></div>
         <button className="rr-text-link" onClick={() => navigateCollection(name)}>Explore collection <ArrowRight size={14}/></button>
       </div>
-      {movieGrid(films.slice(0, 4), "four")}
+      {rotatingMovieGrid(films, "four", `${title} films`)}
     </div>
   </section>;
 
@@ -906,7 +1005,7 @@ export function Reelroom() {
     <section className="rr-section">
       <div className="rr-wrap">
         <div className="rr-section-head"><div><span className="rr-eyebrow">Fresh off the reel</span><h2 className="rr-section-title rr-display">Recently added.</h2></div><button className="rr-text-link" onClick={() => navigate("browse")}>Browse all films <ArrowRight size={14}/></button></div>
-        {movieGrid([...RECENT_MOVIES, MOVIES[4]], "six")}
+        {rotatingMovieGrid([...RECENT_MOVIES, MOVIES[4]], "six", "Recently added films")}
       </div>
     </section>
     <section className="rr-section rr-home-collection">
@@ -919,7 +1018,7 @@ export function Reelroom() {
           </div>
           <button className="rr-text-link" onClick={() => navigate("browse")}>Browse all films <ArrowRight size={14}/></button>
         </div>
-        {movieGrid(CRITERION_SELECTION_MOVIES.slice(0, 4), "four")}
+        {rotatingMovieGrid(CRITERION_SELECTION_MOVIES, "four", "Criterion selection films")}
       </div>
     </section>
     {homeCollectionSection("Digital only", "Platform picks", "Digital only.", "Compare illustrative platform options. The same title may also have a disc edition; availability is not retailer-verified.", MOVIES.filter((movie) => movie.platforms.length > 0))}
