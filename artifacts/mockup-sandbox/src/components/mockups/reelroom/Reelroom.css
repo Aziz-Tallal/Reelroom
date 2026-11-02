@@ -141,6 +141,70 @@
   transform: translate3d(var(--poster-shift-x, 0px), calc(var(--poster-shift-y, 0px) + var(--poster-scroll-y, 0px) - 8px), 0) rotate(var(--poster-tilt));
 }
 
+.reelroom .rr-home-collection {
+  position: relative;
+}
+
+.reelroom .rr-home-collection:nth-of-type(even) {
+  background: rgba(255, 255, 255, .018);
+}
+
+.reelroom .rr-collection-copy {
+  max-width: 560px;
+  margin: 10px 0 0;
+  color: #929da5;
+  font-size: 11px;
+  line-height: 1.65;
+}
+
+.reelroom .rr-category-tabs {
+  display: flex;
+  gap: 8px;
+  margin: 0 0 24px;
+  overflow-x: auto;
+  padding: 2px 0 8px;
+  scrollbar-width: thin;
+}
+
+.reelroom .rr-category-tab {
+  flex: 0 0 auto;
+  min-height: 34px;
+  padding: 0 13px;
+  border: 1px solid rgba(242, 244, 246, .12);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, .025);
+  color: #9ca6ad;
+  font-size: 10px;
+  font-weight: 650;
+  transition: color .18s ease, border-color .18s ease, background .18s ease;
+}
+
+.reelroom .rr-category-tab:hover,
+.reelroom .rr-category-tab.active {
+  border-color: rgba(0, 224, 84, .46);
+  background: rgba(0, 224, 84, .08);
+  color: #8bffae;
+}
+
+.reelroom .rr-choice:disabled {
+  cursor: not-allowed;
+  opacity: .42;
+}
+
+.reelroom .rr-choice:disabled:hover {
+  transform: none;
+}
+
+.reelroom .rr-physical-note {
+  margin: 10px 0 0;
+  padding: 10px 12px;
+  border-left: 2px solid rgba(0, 224, 84, .55);
+  background: rgba(0, 224, 84, .045);
+  color: #aeb8be;
+  font-size: 10px;
+  line-height: 1.55;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .reelroom .rr-hero-poster {
     transition: none;

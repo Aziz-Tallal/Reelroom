@@ -10,8 +10,12 @@ import "./Reelroom.css";
 type Movie = {
   id: string; title: string; year: number; genre: string; runtime: number;
   director: string; synopsis: string; palette: [string, string]; platforms: string[];
+  posterExt?: string; sourcePage?: string;
 };
 type View = "home" | "browse" | "physical" | "digital" | "details" | "watchlist" | "cart" | "checkout" | "library" | "about" | "contact" | "ad";
+type Collection = "All films" | "Digital only" | "Physical only" | "Top 100" | "Academy Award films";
+type ClassicSeed = [id: string, title: string, year: number, genre: string, runtime: number, director: string, synopsis: string, wikiSlug: string, posterExt: string];
+const COLLECTIONS: Collection[] = ["All films", "Digital only", "Physical only", "Top 100", "Academy Award films"];
 type CartLine = {
   key: string; movieId: string; experience: "Physical" | "Digital"; mode: "Buy" | "Rent";
   option: string; price: number; quantity: number; rental: string;
@@ -19,7 +23,7 @@ type CartLine = {
 type DemoOrder = { id: string; date: string; customer: string; total: number; items: CartLine[]; fulfillment: string };
 type CheckoutData = { name: string; email: string; phone: string; fulfillment: string; address: string; note: string };
 
-const MOVIES: Movie[] = [
+const BASE_MOVIES: Movie[] = [
   { id: "interstellar", title: "Interstellar", year: 2014, genre: "Sci-Fi", runtime: 169, director: "Christopher Nolan", synopsis: "With Earth nearing the edge of habitability, a team of explorers travels beyond this galaxy to discover whether mankind has a future among the stars.", palette: ["#101f27", "#9ba97f"], platforms: ["Apple TV", "Amazon Prime Video", "Google TV"] },
   { id: "blade-runner-2049", title: "Blade Runner 2049", year: 2017, genre: "Sci-Fi", runtime: 164, director: "Denis Villeneuve", synopsis: "A new blade runner uncovers a long-buried secret that could unsettle what remains of society and the meaning of being human.", palette: ["#311d25", "#d7804e"], platforms: ["Apple TV", "Amazon Prime Video", "YouTube Movies"] },
   { id: "dark-knight", title: "The Dark Knight", year: 2008, genre: "Crime", runtime: 152, director: "Christopher Nolan", synopsis: "Batman faces a criminal mastermind whose theatrical chaos pushes Gotham and its people toward impossible choices.", palette: ["#18242d", "#82949b"], platforms: ["Apple TV", "Google TV"] },
@@ -39,6 +43,85 @@ const MOVIES: Movie[] = [
   { id: "portrait-lady", title: "Portrait of a Lady on Fire", year: 2019, genre: "Romance", runtime: 122, director: "Céline Sciamma", synopsis: "On a remote island in eighteenth-century France, a painter is commissioned to capture the likeness of a woman who will not sit for her portrait.", palette: ["#492722", "#de9b75"], platforms: ["Apple TV", "Google TV"] },
   { id: "before-sunrise", title: "Before Sunrise", year: 1995, genre: "Romance", runtime: 101, director: "Richard Linklater", synopsis: "Two young travelers meet on a train and spend one unhurried night walking through Vienna, talking about life and possibility.", palette: ["#1f3439", "#d39e60"], platforms: ["Amazon Prime Video", "Google TV", "YouTube Movies"] },
 ];
+
+const CLASSIC_PALETTES: [string, string][] = [
+  ["#272322", "#d6ad6f"], ["#202628", "#b7c0bb"], ["#30252b", "#d38f66"],
+  ["#2c2821", "#c9aa70"], ["#1d2b2a", "#9cae97"], ["#332b25", "#d18c58"],
+  ["#252932", "#a4aeb4"], ["#302c26", "#cbb18c"], ["#22262b", "#9dabb0"],
+  ["#2f2424", "#c78d78"],
+];
+
+const CLASSIC_ROWS: ClassicSeed[] = [
+  ["metropolis", "Metropolis", 1927, "Sci-Fi", 153, "Fritz Lang", "A worker and a ruling-class heir cross paths in a city built above and below ground.", "Metropolis_(1927_film)", "jpg"],
+  ["nosferatu", "Nosferatu", 1922, "Horror", 94, "F. W. Murnau", "A real-estate agent travels to Transylvania and encounters Count Orlok, a figure of quiet dread.", "Nosferatu_(1922_film)", "jpg"],
+  ["cabinet-of-dr-caligari", "The Cabinet of Dr. Caligari", 1920, "Horror", 76, "Robert Wiene", "A traveling hypnotist's show draws a young man into a tale of murder, sleepwalking, and madness.", "The_Cabinet_of_Dr._Caligari", "jpg"],
+  ["the-kid", "The Kid", 1921, "Comedy", 68, "Charlie Chaplin", "A tramp and an abandoned child form a fragile family while trying to stay ahead of hardship.", "The_Kid_(1921_film)", "jpg"],
+  ["the-general", "The General", 1926, "Comedy", 79, "Buster Keaton & Clyde Bruckman", "A locomotive engineer races to recover his stolen train and rescue his fiancée during the Civil War.", "The_General_(1926_film)", "png"],
+  ["safety-last", "Safety Last!", 1923, "Comedy", 73, "Fred C. Newmeyer & Sam Taylor", "A young window cleaner risks a daring climb up a department store to impress the woman he loves.", "Safety_Last%21", "jpg"],
+  ["sherlock-jr", "Sherlock Jr.", 1924, "Comedy", 45, "Buster Keaton", "A screen-struck projectionist finds himself inside a movie, where the rules of the frame keep changing.", "Sherlock_Jr.", "jpg"],
+  ["the-gold-rush", "The Gold Rush", 1925, "Comedy", 95, "Charlie Chaplin", "A lone prospector braves the Yukon and finds companionship, appetite, and comic misfortune.", "The_Gold_Rush", "jpg"],
+  ["battleship-potemkin", "Battleship Potemkin", 1925, "Drama", 75, "Sergei Eisenstein", "A mutiny aboard a battleship becomes a rallying cry for a city on the edge of revolt.", "Battleship_Potemkin", "jpg"],
+  ["passion-of-joan-of-arc", "The Passion of Joan of Arc", 1928, "Drama", 82, "Carl Theodor Dreyer", "A young woman faces an inquisitorial trial while a cleric fights to save her from execution.", "The_Passion_of_Joan_of_Arc", "png"],
+  ["deer-hunter", "The Deer Hunter", 1978, "Drama", 183, "Michael Cimino", "Three friends return from Vietnam; the war's long aftermath strains loyalty and everyday life.", "The_Deer_Hunter", "jpg"],
+  ["city-lights", "City Lights", 1931, "Comedy", 87, "Charlie Chaplin", "The Little Tramp tries to help a blind flower seller and make a better future possible.", "City_Lights", "jpg"],
+  ["maltese-falcon", "The Maltese Falcon", 1941, "Crime", 100, "John Huston", "A private detective is hired by a woman whose search for her sister opens a trail of murder.", "The_Maltese_Falcon_(1941_film)", "jpg"],
+  ["sound-of-music", "The Sound of Music", 1965, "Musical", 174, "Robert Wise", "A postulant leaves the convent to care for a widower's seven children in Austria.", "The_Sound_of_Music", "jpg"],
+  ["bridge-on-the-river-kwai", "The Bridge on the River Kwai", 1957, "War", 161, "David Lean", "A captured British colonel must resist his commandant without endangering the prisoners in his care.", "The_Bridge_on_the_River_Kwai", "jpg"],
+  ["stagecoach", "Stagecoach", 1939, "Western", 96, "John Ford", "Passengers with very different pasts cross Apache territory together on a stagecoach bound for Lordsburg.", "Stagecoach_(1939_film)", "jpg"],
+  ["best-years-of-our-lives", "The Best Years of Our Lives", 1946, "Drama", 170, "William Wyler", "Three veterans return home after the war and try to find their place in lives that have changed.", "The_Best_Years_of_Our_Lives", "jpg"],
+  ["wizard-of-oz", "The Wizard of Oz", 1939, "Adventure", 102, "Victor Fleming", "A farmhand and a young woman follow a yellow-brick road through a land of strange companions.", "The_Wizard_of_Oz_(1939_film)", "jpg"],
+  ["grapes-of-wrath", "The Grapes of Wrath", 1940, "Drama", 129, "John Ford", "A tenant farmer's family migrates west during the Dust Bowl, searching for work and dignity.", "The_Grapes_of_Wrath_(film)", "jpg"],
+  ["citizen-kane", "Citizen Kane", 1941, "Drama", 119, "Orson Welles", "A reporter investigates the last word of a newspaper magnate whose history remains elusive.", "Citizen_Kane", "jpg"],
+  ["casablanca", "Casablanca", 1942, "Romance", 102, "Michael Curtiz", "A nightclub owner in wartime Casablanca chooses between private love and a larger cause.", "Casablanca_(film)", "jpg"],
+  ["double-indemnity", "Double Indemnity", 1944, "Crime", 107, "Billy Wilder", "An insurance salesman and a client's wife plot a murder designed to look like an accident.", "Double_Indemnity", "jpg"],
+  ["lost-weekend", "The Lost Weekend", 1945, "Drama", 101, "Billy Wilder", "A writer's alcohol dependence turns a New York weekend into an increasingly desperate search.", "The_Lost_Weekend", "jpg"],
+  ["its-a-wonderful-life", "It's a Wonderful Life", 1946, "Drama", 130, "Frank Capra", "A despairing banker learns how deeply his quiet acts have shaped the people in his town.", "It%27s_a_Wonderful_Life", "jpeg"],
+  ["bicycle-thieves", "Bicycle Thieves", 1948, "Drama", 89, "Vittorio De Sica", "A laborer and his son search postwar Rome for the bicycle he needs to keep his job.", "Bicycle_Thieves", "jpg"],
+  ["third-man", "The Third Man", 1949, "Thriller", 104, "Carol Reed", "A small-time writer hunts for the truth behind a friend's death in postwar Vienna.", "The_Third_Man", "jpg"],
+  ["all-about-eve", "All About Eve", 1950, "Drama", 138, "Joseph L. Mankiewicz", "A Broadway starlet works her way into an actress's circle and begins to upset its balance.", "All_About_Eve", "jpg"],
+  ["night-of-the-hunter", "The Night of the Hunter", 1955, "Thriller", 93, "Charles Laughton", "A traveling preacher brings a dark fairy tale to a mother and her children on the run.", "The_Night_of_the_Hunter", "jpg"],
+  ["rashomon", "Rashomon", 1950, "Drama", 88, "Akira Kurosawa", "Four witnesses recount one incident from conflicting perspectives, leaving truth unsettled.", "Rashomon", "jpg"],
+  ["singin-in-the-rain", "Singin' in the Rain", 1952, "Musical", 103, "Gene Kelly & Stanley Donen", "A movie star and a young actor turn the industry's transition to sound into a musical comedy.", "Singin%27_in_the_Rain", "jpg"],
+  ["tokyo-story", "Tokyo Story", 1953, "Drama", 136, "Yasujirō Ozu", "An aging couple travels to Tokyo to see their adult children and discovers a generational distance.", "Tokyo_Story", "jpg"],
+  ["roman-holiday", "Roman Holiday", 1953, "Romance", 118, "William Wyler", "A princess slips away from official duties for one day of anonymous freedom in Rome.", "Roman_Holiday", "jpg"],
+  ["seven-samurai", "Seven Samurai", 1954, "Adventure", 207, "Akira Kurosawa", "A village under threat asks seven samurai to plan its defense against a band of raiders.", "Seven_Samurai", "png"],
+  ["rear-window", "Rear Window", 1954, "Thriller", 112, "Alfred Hitchcock", "A photographer's convalescence turns his courtyard into a window onto the lives around him.", "Rear_Window", "jpg"],
+  ["12-angry-men", "12 Angry Men", 1957, "Drama", 96, "Sidney Lumet", "A jury's private doubts deepen as twelve men debate a murder case in a single room.", "12_Angry_Men_(1957_film)", "jpg"],
+  ["vertigo", "Vertigo", 1958, "Thriller", 128, "Alfred Hitchcock", "A retired detective's return to work becomes entangled with a woman who echoes his past.", "Vertigo_(film)", "jpg"],
+  ["some-like-it-hot", "Some Like It Hot", 1959, "Comedy", 121, "Billy Wilder", "Two musicians flee a Chicago gang by taking new identities in an all-women's band.", "Some_Like_It_Hot", "png"],
+  ["the-apartment", "The Apartment", 1960, "Romance", 125, "Billy Wilder", "An office clerk lends his apartment to executives until one evening changes the arrangement.", "The_Apartment", "jpg"],
+  ["lawrence-of-arabia", "Lawrence of Arabia", 1962, "Adventure", 222, "David Lean", "A British officer joins an Arab revolt in a story of allegiance, ambition, and self-invention.", "Lawrence_of_Arabia_(film)", "jpg"],
+  ["to-kill-a-mockingbird", "To Kill a Mockingbird", 1962, "Drama", 129, "Robert Mulligan", "A lawyer's daughter watches a small-town trial and the difficult adult choices surrounding it.", "To_Kill_a_Mockingbird_(film)", "jpg"],
+  ["8-1-2", "8½", 1963, "Drama", 138, "Federico Fellini", "A film director struggles with his next work as memory, fantasy, and the present begin to mingle.", "8%C2%BD", "jpg"],
+  ["dr-strangelove", "Dr. Strangelove", 1964, "Comedy", 95, "Stanley Kubrick", "A rare missile threatens the world while a room of officials tries to prevent catastrophe.", "Dr._Strangelove", "jpg"],
+  ["good-bad-ugly", "The Good, the Bad and the Ugly", 1966, "Western", 178, "Sergio Leone", "Three gunslingers race across a war-torn frontier in search of buried gold.", "The_Good,_the_Bad_and_the_Ugly", "jpg"],
+  ["graduate", "The Graduate", 1967, "Comedy", 106, "Mike Nichols", "A recent college graduate returns home unsure of the future and forms an unexpected connection.", "The_Graduate", "jpg"],
+  ["french-connection", "The French Connection", 1971, "Crime", 104, "William Friedkin", "Two New York detectives follow a narcotics trail through an increasingly tense investigation.", "The_French_Connection_(film)", "jpg"],
+  ["chinatown", "Chinatown", 1974, "Crime", 130, "Roman Polanski", "A private investigator enters a Los Angeles water scandal whose reach is greater than it first appears.", "Chinatown_(1974_film)", "jpg"],
+  ["one-flew-over-cuckoos-nest", "One Flew Over the Cuckoo's Nest", 1975, "Drama", 133, "Miloš Forman", "A rebellious new patient tests the rigid routines of a psychiatric hospital and its residents.", "One_Flew_Over_the_Cuckoo%27s_Nest_(film)", "jpg"],
+  ["all-presidents-men", "All the President's Men", 1976, "Thriller", 138, "Alan J. Pakula", "Two journalists trace a political burglary toward the White House and the story it concealed.", "All_the_President%27s_Men_(film)", "jpg"],
+  ["raging-bull", "Raging Bull", 1980, "Drama", 129, "Martin Scorsese", "A middleweight boxer looks back on his career and the relationships shaped by his own temper.", "Raging_Bull", "jpg"],
+  ["cinema-paradiso", "Cinema Paradiso", 1988, "Drama", 124, "Giuseppe Tornatore", "A filmmaker remembers the small Sicilian cinema where a projectionist first opened the world to him.", "Cinema_Paradiso", "jpg"],
+];
+
+const CLASSIC_MOVIES: Movie[] = CLASSIC_ROWS.map(([id, title, year, genre, runtime, director, synopsis, wikiSlug, posterExt], index) => ({
+  id, title, year, genre, runtime, director, synopsis, posterExt,
+  palette: CLASSIC_PALETTES[index % CLASSIC_PALETTES.length],
+  platforms: [],
+  sourcePage: `https://en.wikipedia.org/wiki/${wikiSlug}`,
+}));
+const MOVIES: Movie[] = [...BASE_MOVIES, ...CLASSIC_MOVIES].slice(0, 100);
+
+const ACADEMY_AWARD_IDS = new Set([
+  "interstellar", "blade-runner-2049", "dark-knight", "grand-budapest", "dune-part-two",
+  "whiplash", "parasite", "spirited-away", "godfather", "pulp-fiction", "oppenheimer",
+  "everything-everywhere", "sound-of-music", "bridge-on-the-river-kwai", "stagecoach",
+  "best-years-of-our-lives", "wizard-of-oz", "grapes-of-wrath", "citizen-kane", "casablanca",
+  "lost-weekend", "bicycle-thieves", "all-about-eve", "rashomon", "roman-holiday",
+  "the-apartment", "lawrence-of-arabia", "to-kill-a-mockingbird", "graduate",
+  "french-connection", "chinatown", "one-flew-over-cuckoos-nest", "all-presidents-men",
+  "raging-bull", "cinema-paradiso", "deer-hunter",
+]);
 
 const HERO_POSTERS = [
   { movieId: "interstellar", image: "/__mockup/images/reelroom-interstellar.jpg", source: "https://en.wikipedia.org/wiki/Interstellar_(film)" },
@@ -67,6 +150,8 @@ const POSTER_SOURCES: Record<string, string> = {
   "everything-everywhere": "https://en.wikipedia.org/wiki/Everything_Everywhere_All_at_Once",
   "portrait-lady": "https://en.wikipedia.org/wiki/Portrait_of_a_Lady_on_Fire",
   "before-sunrise": "https://en.wikipedia.org/wiki/Before_Sunrise",
+  ...Object.fromEntries(CLASSIC_MOVIES.map((movie) => [movie.id, movie.sourcePage ?? "https://en.wikipedia.org/wiki/Film"])),
+  "sound-of-music": "https://commons.wikimedia.org/wiki/File:Sound_of_music.jpg",
 };
 
 const FOUR_K_DEMO_TITLES = new Set(["interstellar", "blade-runner-2049", "dune-part-two", "dark-knight", "the-shining", "inception", "2001", "godfather", "the-batman", "oppenheimer"]);
@@ -346,7 +431,7 @@ function Logo({ onClick }: { onClick: () => void }) {
 
 function Poster({ movie, onClick, saved, onFavorite }: { movie: Movie; onClick: () => void; saved: boolean; onFavorite: () => void }) {
   return <div className="rr-poster" role="button" tabIndex={0} onClick={onClick} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") onClick(); }} style={{ "--poster-bg": `linear-gradient(148deg, ${movie.palette[0]}, #11181c 78%)`, "--poster-glow": movie.palette[1] } as CSSProperties} aria-label={`View ${movie.title} details`}>
-    <img className="rr-poster-image" src={`/__mockup/images/reelroom-${movie.id}.jpg`} alt={`${movie.title} theatrical poster`} loading="lazy" onError={(event) => event.currentTarget.classList.add("poster-error")}/>
+    <img className="rr-poster-image" src={`/__mockup/images/reelroom-${movie.id}.${movie.posterExt ?? "jpg"}`} alt={`${movie.title} theatrical poster`} loading="lazy" onError={(event) => event.currentTarget.classList.add("poster-error")}/>
     <div className="rr-poster-art" />
     <span className="rr-poster-mark">REELROOM ARCHIVE</span>
     <button className={`rr-fav ${saved ? "saved" : ""}`} aria-label={saved ? `Remove ${movie.title} from watchlist` : `Add ${movie.title} to watchlist`} onClick={(event) => { event.stopPropagation(); onFavorite(); }}>
@@ -363,12 +448,13 @@ function Poster({ movie, onClick, saved, onFavorite }: { movie: Movie; onClick: 
 
 function MovieCard({ movie, onDetails, saved, onFavorite }: { movie: Movie; onDetails: () => void; saved: boolean; onFavorite: () => void }) {
   const base = Math.min(...Object.values(PHYSICAL_PRICE.Buy));
+  const availability = movie.platforms.length ? "Disc · Digital" : "Physical only";
   return <article className="rr-movie-card">
     <Poster movie={movie} onClick={onDetails} saved={saved} onFavorite={onFavorite}/>
     <div className="rr-movie-info">
       <h3 className="rr-movie-title">{movie.title}</h3>
       <div className="rr-movie-sub">{movie.year} <span aria-hidden="true">·</span> {movie.genre} <span aria-hidden="true">·</span> {movie.runtime} min</div>
-      <div className="rr-movie-bottom"><span className="rr-price">From {money(base)} <small>demo</small></span><span className="rr-tags">Disc · Digital</span></div>
+      <div className="rr-movie-bottom"><span className="rr-price">From {money(base)} <small>demo</small></span><span className="rr-tags">{availability}{ACADEMY_AWARD_IDS.has(movie.id) ? " · Academy award" : ""}</span></div>
     </div>
   </article>;
 }
@@ -382,6 +468,7 @@ export function Reelroom() {
   const [toast, setToast] = useState("");
   const [mobileOpen, setMobileOpen] = useState(false);
   const [search, setSearch] = useState("");
+  const [collection, setCollection] = useState<Collection>("All films");
   const [genre, setGenre] = useState("All genres");
   const [decade, setDecade] = useState("All decades");
   const [format, setFormat] = useState("Any format");
@@ -411,6 +498,7 @@ export function Reelroom() {
     const digital = view === "digital" || modeFilter === "Digital";
     const renting = modeFilter === "Rent";
     if (digital) {
+      if (!movie.platforms.length) return Number.POSITIVE_INFINITY;
       const cheapestPlatform = Math.min(...movie.platforms.map((platform) => PLATFORM_RENT_PRICE[platform] ?? 2.5));
       return cheapestPlatform * (renting ? 1 : 3.2);
     }
@@ -470,11 +558,16 @@ export function Reelroom() {
   }, [adPlaying, adKey]);
 
   const navigate = (next: View) => {
+    if (next !== "details") setCollection("All films");
     setView(next);
     setMobileOpen(false);
     setAdded(false);
     if (next === "checkout") { setCheckoutStep(1); setCheckoutErrors({}); setConfirmedOrder(null); }
     window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+  const navigateCollection = (next: Collection) => {
+    navigate("browse");
+    setCollection(next);
   };
   const toggleFavorite = (id: string) => {
     const exists = watchlist.includes(id);
@@ -488,8 +581,10 @@ export function Reelroom() {
   };
   const filteredMovies = useMemo(() => {
     let result = [...MOVIES];
-    if (view === "physical") result = result.filter((movie) => movie.id);
     if (view === "digital") result = result.filter((movie) => movie.platforms.length);
+    if (collection === "Digital only") result = result.filter((movie) => movie.platforms.length > 0);
+    if (collection === "Physical only") result = result.filter((movie) => movie.platforms.length === 0);
+    if (collection === "Academy Award films") result = result.filter((movie) => ACADEMY_AWARD_IDS.has(movie.id));
     if (genre !== "All genres") result = result.filter((movie) => movie.genre === genre);
     if (decade !== "All decades") {
       const from = Number(decade.slice(0, 4));
@@ -516,7 +611,7 @@ export function Reelroom() {
     if (sort === "Oldest") result.sort((a, b) => a.year - b.year);
     if (sort === "Price: low to high") result.sort((a, b) => catalogPrice(a) - catalogPrice(b) || a.title.localeCompare(b.title));
     return result;
-  }, [view, genre, decade, search, format, modeFilter, maxPrice, sort]);
+  }, [view, collection, genre, decade, search, format, modeFilter, maxPrice, sort]);
 
   const itemPrice = experience === "Physical"
     ? PHYSICAL_PRICE[buyMode][selectedOption]
@@ -524,9 +619,14 @@ export function Reelroom() {
   const rental = experience === "Physical" ? "7-day rental · return by the date shown at checkout" : "30-day viewing window · 48 hours to finish once started";
   const setMode = (mode: "Buy" | "Rent") => { setBuyMode(mode); setAdded(false); };
   const setExperienceMode = (kind: "Physical" | "Digital") => {
+    if (kind === "Digital" && selectedMovie.platforms.length === 0) return;
     setExperience(kind); setSelectedOption(kind === "Physical" ? "Blu-ray" : (selectedMovie.platforms[0] ?? "Apple TV")); setAdded(false);
   };
   const addToCart = () => {
+    if (experience === "Digital" && selectedMovie.platforms.length === 0) {
+      setToast("This title has no digital listing in the demo");
+      return;
+    }
     const line: CartLine = {
       key: `${selectedMovie.id}-${experience}-${buyMode}-${selectedOption}-${Date.now()}`,
       movieId: selectedMovie.id, experience, mode: buyMode, option: selectedOption,
@@ -542,7 +642,7 @@ export function Reelroom() {
   };
   const updateQuantity = (key: string, value: number) => setCart((current) => current.map((item) => item.key === key ? { ...item, quantity: Math.max(1, value) } : item));
   const removeCartItem = (key: string) => { setCart((current) => current.filter((item) => item.key !== key)); setToast("Item removed from cart"); };
-  const resetFilters = () => { setSearch(""); setGenre("All genres"); setDecade("All decades"); setFormat("Any format"); setModeFilter("Any mode"); setMaxPrice("Any price"); setSort("Featured"); };
+  const resetFilters = () => { setCollection("All films"); setSearch(""); setGenre("All genres"); setDecade("All decades"); setFormat("Any format"); setModeFilter("Any mode"); setMaxPrice("Any price"); setSort("Featured"); };
 
   const validateCheckout = () => {
     const errors: Record<string, string> = {};
@@ -607,6 +707,15 @@ export function Reelroom() {
   const movieGrid = (items: Movie[], columns = "six") => items.length ? <div className={`rr-grid ${columns === "four" ? "four" : ""}`}>
     {items.map((movie) => <MovieCard key={movie.id} movie={movie} saved={watchlist.includes(movie.id)} onDetails={() => openDetails(movie)} onFavorite={() => toggleFavorite(movie.id)}/>)}
   </div> : <div className="rr-empty"><Film size={27} color="#00E054"/><h2>No films in this frame.</h2><p>Try a different search or clear a few filters to find your next favorite.</p><button className="rr-button secondary small" onClick={resetFilters}>Clear filters</button></div>;
+  const homeCollectionSection = (name: Collection, eyebrow: string, title: string, copy: string, films: Movie[]) => <section className="rr-section rr-home-collection" key={name}>
+    <div className="rr-wrap">
+      <div className="rr-section-head">
+        <div><span className="rr-eyebrow">{eyebrow}</span><h2 className="rr-section-title rr-display">{title}</h2><p className="rr-collection-copy">{copy}</p></div>
+        <button className="rr-text-link" onClick={() => navigateCollection(name)}>Explore collection <ArrowRight size={14}/></button>
+      </div>
+      {movieGrid(films.slice(0, 4), "four")}
+    </div>
+  </section>;
 
   const handleHeroPointerMove = (event: ReactPointerEvent<HTMLElement>) => {
     if (event.pointerType !== "mouse" && event.pointerType !== "pen") return;
@@ -667,6 +776,10 @@ export function Reelroom() {
         {movieGrid([MOVIES[0], MOVIES[4], MOVIES[7], MOVIES[14], MOVIES[3], MOVIES[12]], "six")}
       </div>
     </section>
+    {homeCollectionSection("Digital only", "Platform picks", "Digital only.", "Compare illustrative platform options. The same title may also have a disc edition; availability is not retailer-verified.", MOVIES.filter((movie) => movie.platforms.length > 0))}
+    {homeCollectionSection("Physical only", "The disc shelf", "Physical only.", "Fifty classic films are listed on disc in this demo. Regional stock and release formats are not verified.", MOVIES.filter((movie) => movie.platforms.length === 0))}
+    {homeCollectionSection("Top 100", "A growing shortlist", "The Top 100.", `Built for 100 films; ${MOVIES.length} titles are on the shelf today.`, MOVIES)}
+    {homeCollectionSection("Academy Award films", "The gold standard", "Academy Award films.", "A collection of Academy Award-winning pictures, performances, writing, and craft.", MOVIES.filter((movie) => ACADEMY_AWARD_IDS.has(movie.id)))}
     <section className="rr-section compact">
       <div className="rr-wrap">
         <div className="rr-section-head"><div><span className="rr-eyebrow">Choose your experience</span><h2 className="rr-section-title rr-display">Cinema, your way.</h2></div></div>
@@ -691,23 +804,34 @@ export function Reelroom() {
   </main>;
 
   const renderCatalog = () => {
-    const pageTitle = view === "physical" ? "Physical cinema" : view === "digital" ? "Digital cinema" : view === "watchlist" ? "Your watchlist" : "The film archive";
+    const pageTitle = collection !== "All films" ? collection : view === "physical" ? "Physical cinema" : view === "digital" ? "Digital cinema" : view === "watchlist" ? "Your watchlist" : "The film archive";
     const list = view === "watchlist" ? filteredMovies.filter((movie) => watchlist.includes(movie.id)) : filteredMovies;
+    const collectionCopy: Record<Collection, string> = {
+      "All films": "A considered collection across genres, decades, and the many ways to watch.",
+      "Digital only": "Titles with example digital platform options. Digital access and current availability are not verified.",
+      "Physical only": "Fifty older classics listed on disc in this demonstration catalog; no digital options are represented here.",
+      "Top 100": `A growing hundred-film collection. ${MOVIES.length} titles are available to browse today.`,
+      "Academy Award films": "Films with Academy Award wins across picture, performance, writing, and craft.",
+    };
+    const pageDescription = collection !== "All films" ? collectionCopy[collection] : view === "physical" ? "Find a film for the shelf, the cinema room, or a good old-fashioned movie night. Availability is demonstration data." : view === "digital" ? "Compare example digital options by platform. No viewing rights or third-party purchases are provided here." : view === "watchlist" ? "A personal shortlist of films worth coming back to." : collectionCopy["All films"];
     return <main className="rr-wrap">
-      <div className="rr-page-head"><span className="rr-eyebrow">{view === "watchlist" ? "Saved for later" : "Curated cinema archive"}</span><h1>{pageTitle}</h1><p>{view === "physical" ? "Find a film for the shelf, the cinema room, or a good old-fashioned movie night. Availability is demonstration data." : view === "digital" ? "Compare example digital options by platform. No viewing rights or third-party purchases are provided here." : view === "watchlist" ? "A personal shortlist of films worth coming back to." : "A considered collection across genres, decades, and the many ways to watch."}</p></div>
+      <div className="rr-page-head"><span className="rr-eyebrow">{view === "watchlist" ? "Saved for later" : "Curated cinema archive"}</span><h1>{pageTitle}</h1><p>{pageDescription}</p></div>
       {view === "watchlist" ? <section className="rr-section compact">{watchlist.length === 0 ? <div className="rr-empty"><Heart size={25}/><h2>Your next favorite belongs here.</h2><p>Save films while browsing and they will wait right here for you.</p><button className="rr-button" onClick={() => navigate("browse")}>Explore movies <ArrowRight size={14}/></button></div> : movieGrid(list, "four")}</section> : <>
+        <div className="rr-category-tabs" role="tablist" aria-label="Movie collections">
+          {COLLECTIONS.map((name) => <button type="button" role="tab" aria-selected={collection === name} className={`rr-category-tab ${collection === name ? "active" : ""}`} key={name} onClick={() => setCollection(name)}>{name}</button>)}
+        </div>
         <div className="rr-catalog-toolbar">
           <label className="rr-search"><Search size={17}/><input id="catalog-search" className="rr-input" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search titles, directors, genres…" aria-label="Search films"/></label>
           <label><span className="rr-filter-label">Sort by</span><select className="rr-select" value={sort} onChange={(event) => setSort(event.target.value)} aria-label="Sort movies"><option>Featured</option><option>Title A–Z</option><option>Newest</option><option>Oldest</option><option>Price: low to high</option></select></label>
         </div>
         <div className="rr-filters">
           <label className="rr-filter"><span className="rr-filter-label">Genre</span><select className="rr-select" value={genre} onChange={(event) => setGenre(event.target.value)}>{genres.map((item) => <option key={item}>{item}</option>)}</select></label>
-          <label className="rr-filter"><span className="rr-filter-label">Decade</span><select className="rr-select" value={decade} onChange={(event) => setDecade(event.target.value)}><option>All decades</option>{[1960,1970,1980,1990,2000,2010,2020].map((year) => <option key={year}>{year}s</option>)}</select></label>
+          <label className="rr-filter"><span className="rr-filter-label">Decade</span><select className="rr-select" value={decade} onChange={(event) => setDecade(event.target.value)}><option>All decades</option>{[1920,1930,1940,1950,1960,1970,1980,1990,2000,2010,2020].map((year) => <option key={year}>{year}s</option>)}</select></label>
           <label className="rr-filter"><span className="rr-filter-label">Format</span><select className="rr-select" value={format} onChange={(event) => setFormat(event.target.value)}><option>Any format</option><option>DVD</option><option>Blu-ray</option><option>4K Ultra HD</option><option>Digital</option></select></label>
           <label className="rr-filter"><span className="rr-filter-label">Experience</span><select className="rr-select" value={modeFilter} onChange={(event) => setModeFilter(event.target.value)}><option>Any mode</option><option>Buy</option><option>Rent</option><option>Physical</option><option>Digital</option></select></label>
           <label className="rr-filter"><span className="rr-filter-label">Starting price</span><select className="rr-select" value={maxPrice} onChange={(event) => setMaxPrice(event.target.value)}><option>Any price</option><option value="2">Under 2 KWD</option><option value="4">Under 4 KWD</option><option value="7">Under 7 KWD</option><option value="10">Under 10 KWD</option></select></label>
         </div>
-        <div className="rr-results-line"><span>{list.length} films in this frame</span><button className="rr-text-link" onClick={resetFilters}>Clear filters <RotateCcw size={12}/></button></div>
+        <div className="rr-results-line"><span>{list.length} films · {MOVIES.length} of 100 titles in the catalog</span><button className="rr-text-link" onClick={resetFilters}>Clear filters <RotateCcw size={12}/></button></div>
         {movieGrid(list, "six")}
       </>}
        <div style={{ padding: "30px 0 55px" }}>
@@ -718,7 +842,7 @@ export function Reelroom() {
   };
 
   const renderDetails = () => {
-    const options = experience === "Physical" ? ["DVD", "Blu-ray", "4K Ultra HD"] : selectedMovie.platforms;
+    const options = experience === "Physical" ? ["DVD", "Blu-ray", ...(FOUR_K_DEMO_TITLES.has(selectedMovie.id) ? ["4K Ultra HD"] : [])] : selectedMovie.platforms;
     const setOption = (option: string) => { setSelectedOption(option); setAdded(false); };
     const priceText = typeof itemPrice === "number" ? itemPrice : Number(itemPrice);
     return <main>
@@ -737,8 +861,9 @@ export function Reelroom() {
           <span className="rr-eyebrow">Choose your experience</span><h3>How do you want it?</h3>
           <div className="rr-choice-row">
             <button className={`rr-choice ${experience === "Physical" ? "active" : ""}`} onClick={() => setExperienceMode("Physical")}><strong>PHYSICAL</strong><span>Own or rent a disc</span></button>
-            <button className={`rr-choice ${experience === "Digital" ? "active blue" : ""}`} onClick={() => setExperienceMode("Digital")}><strong>DIGITAL</strong><span>Choose a platform</span></button>
+            <button className={`rr-choice ${experience === "Digital" ? "active blue" : ""}`} disabled={selectedMovie.platforms.length === 0} onClick={() => setExperienceMode("Digital")}><strong>DIGITAL</strong><span>{selectedMovie.platforms.length ? "Choose a platform" : "Not listed in this demo"}</span></button>
           </div>
+          {selectedMovie.platforms.length === 0 && <p className="rr-physical-note">Physical-only demo listing. Digital availability is not represented here.</p>}
           <span className="rr-field-label">Select buy or rent</span>
           <div className="rr-choice-row">
             <button className={`rr-choice ${buyMode === "Buy" ? "active" : ""}`} onClick={() => setMode("Buy")}><strong>BUY</strong><span>{experience === "Physical" ? "Keep on your shelf" : "Demo ownership"}</span></button>
@@ -771,7 +896,7 @@ export function Reelroom() {
           <div>{cart.map((item) => {
             const movie = movieFor(item.movieId);
             return <div className="rr-cart-item" key={item.key}>
-              <div className="rr-poster" style={{ "--poster-bg": `linear-gradient(148deg,${movie.palette[0]},#11181c 78%)`, "--poster-glow": movie.palette[1] } as CSSProperties}><img className="rr-poster-image" src={`/__mockup/images/reelroom-${movie.id}.jpg`} alt={`${movie.title} theatrical poster`} loading="lazy"/><div className="rr-poster-art"/><span className="rr-poster-title">{movie.title}</span></div>
+              <div className="rr-poster" style={{ "--poster-bg": `linear-gradient(148deg,${movie.palette[0]},#11181c 78%)`, "--poster-glow": movie.palette[1] } as CSSProperties}><img className="rr-poster-image" src={`/__mockup/images/reelroom-${movie.id}.${movie.posterExt ?? "jpg"}`} alt={`${movie.title} theatrical poster`} loading="lazy"/><div className="rr-poster-art"/><span className="rr-poster-title">{movie.title}</span></div>
               <div><h3 className="rr-cart-name">{movie.title}</h3><p className="rr-cart-desc">{item.experience} · {item.mode} · {item.option}</p><p className="rr-cart-desc">{item.rental}</p>{item.experience === "Physical" && item.mode === "Buy" && <div className="rr-quantity" style={{ marginTop: 8 }}><button aria-label={`Decrease ${movie.title} quantity`} onClick={() => updateQuantity(item.key, item.quantity - 1)}><Minus size={12}/></button><span>{item.quantity}</span><button aria-label={`Increase ${movie.title} quantity`} onClick={() => updateQuantity(item.key, item.quantity + 1)}><Plus size={12}/></button></div>}</div>
               <strong className="rr-price rr-cart-price">{money(item.price * item.quantity)}</strong>
               <button className="rr-icon-btn" aria-label={`Remove ${movie.title}`} onClick={() => removeCartItem(item.key)}><Trash2 size={16}/></button>
