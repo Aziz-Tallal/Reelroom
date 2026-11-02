@@ -754,7 +754,7 @@ function Poster({ movie, onClick, saved, onFavorite }: { movie: Movie; onClick: 
       timerRef.current = null;
       setArming(false);
       preview.setActiveId(movie.id);
-    }, 10_000);
+    }, 5_000);
   };
 
   useEffect(() => () => {
