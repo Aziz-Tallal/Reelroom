@@ -102,6 +102,38 @@ const CLASSIC_ROWS: ClassicSeed[] = [
   ["all-presidents-men", "All the President's Men", 1976, "Thriller", 138, "Alan J. Pakula", "Two journalists trace a political burglary toward the White House and the story it concealed.", "All_the_President%27s_Men_(film)", "jpg"],
   ["raging-bull", "Raging Bull", 1980, "Drama", 129, "Martin Scorsese", "A middleweight boxer looks back on his career and the relationships shaped by his own temper.", "Raging_Bull", "jpg"],
   ["cinema-paradiso", "Cinema Paradiso", 1988, "Drama", 124, "Giuseppe Tornatore", "A filmmaker remembers the small Sicilian cinema where a projectionist first opened the world to him.", "Cinema_Paradiso", "jpg"],
+  ["sunrise", "Sunrise: A Song of Two Humans", 1927, "Romance", 94, "F. W. Murnau", "A farmer is pulled between the quiet life he knows and a city woman's promise of escape.", "Sunrise:_A_Song_of_Two_Humans", "jpg"],
+  ["last-laugh", "The Last Laugh", 1924, "Drama", 90, "F. W. Murnau", "A proud hotel doorman faces a sudden loss of status and the fragile kindness of a city.", "The_Last_Laugh_(1924_film)", "png"],
+  ["jazz-singer", "The Jazz Singer", 1927, "Musical", 89, "Alan Crosland", "A young performer follows his musical ambition while balancing family expectation and tradition.", "The_Jazz_Singer_(1927_film)", "jpg"],
+  ["the-39-steps", "The 39 Steps", 1935, "Thriller", 86, "Alfred Hitchcock", "An ordinary visitor becomes a fugitive after a chance encounter draws him into an espionage plot.", "The_39_Steps_(1935_film)", "jpg"],
+  ["frankenstein", "Frankenstein", 1931, "Horror", 70, "James Whale", "A scientist's experiment gives life to a misunderstood creature and unleashes a chain of fear.", "Frankenstein_(1931_film)", "jpg"],
+  ["dracula-1931", "Dracula", 1931, "Horror", 75, "Tod Browning", "A mysterious count arrives in England, bringing an old-world menace into a modern household.", "Dracula_(1931_English-language_film)", "jpg"],
+  ["king-kong", "King Kong", 1933, "Adventure", 100, "Merian C. Cooper & Ernest B. Schoedsack", "A film crew travels to a remote island and brings its legendary giant back to New York.", "King_Kong_(1933_film)", "jpg"],
+  ["it-happened-one-night", "It Happened One Night", 1934, "Romance", 105, "Frank Capra", "A runaway heiress and a reporter share an unexpected road trip across the country.", "It_Happened_One_Night", "jpg"],
+  ["modern-times", "Modern Times", 1936, "Comedy", 87, "Charlie Chaplin", "A factory worker and an orphan try to find a little security in a city built for speed.", "Modern_Times_(film)", "jpg"],
+  ["red-shoes", "The Red Shoes", 1948, "Drama", 133, "Michael Powell & Emeric Pressburger", "A young dancer is torn between a demanding company and the life she hopes to make beyond it.", "The_Red_Shoes_(1948_film)", "jpg"],
+  ["rebecca", "Rebecca", 1940, "Drama", 130, "Alfred Hitchcock", "A new bride enters a grand estate where the memory of her husband's first wife still holds power.", "Rebecca_(1940_film)", "jpeg"],
+  ["philadelphia-story", "The Philadelphia Story", 1940, "Comedy", 112, "George Cukor", "A society wedding brings a bride, her former husband, and a pair of reporters into one room.", "The_Philadelphia_Story_(film)", "jpg"],
+  ["treasure-sierra-madre", "The Treasure of the Sierra Madre", 1948, "Adventure", 126, "John Huston", "Three prospectors head into the mountains, where an uncertain fortune tests their trust.", "The_Treasure_of_the_Sierra_Madre_(film)", "jpg"],
+  ["sunset-boulevard", "Sunset Boulevard", 1950, "Drama", 110, "Billy Wilder", "A screenwriter accepts an unusual job from a former star who refuses to leave the spotlight.", "Sunset_Boulevard_(film)", "jpg"],
+  ["high-noon", "High Noon", 1952, "Western", 85, "Fred Zinnemann", "A marshal prepares to face a returning outlaw while the town weighs its own courage.", "High_Noon", "jpg"],
+  ["on-waterfront", "On the Waterfront", 1954, "Crime", 108, "Elia Kazan", "A dockworker considers speaking out against the organization that controls his waterfront.", "On_the_Waterfront", "jpg"],
+  ["searchers", "The Searchers", 1956, "Western", 119, "John Ford", "A veteran and his companion search the frontier for a missing member of their family.", "The_Searchers_(film)", "jpg"],
+  ["paths-of-glory", "Paths of Glory", 1957, "War", 88, "Stanley Kubrick", "A French colonel confronts the machinery of command after a costly battlefield order.", "Paths_of_Glory", "jpg"],
+  ["touch-of-evil", "Touch of Evil", 1958, "Crime", 111, "Orson Welles", "A border investigation becomes a contest of power between a visiting officer and a local detective.", "Touch_of_Evil", "jpg"],
+  ["400-blows", "The 400 Blows", 1959, "Drama", 99, "François Truffaut", "A restless Parisian boy looks for understanding as school and home feel increasingly distant.", "The_400_Blows", "jpg"],
+  ["psycho", "Psycho", 1960, "Horror", 109, "Alfred Hitchcock", "A stop at a roadside motel sets off a mystery that reshapes the lives of its guests.", "Psycho_(1960_film)", "jpg"],
+  ["la-dolce-vita", "La Dolce Vita", 1960, "Drama", 174, "Federico Fellini", "A journalist moves through Rome's glittering nights in search of a life that feels meaningful.", "La_Dolce_Vita", "jpg"],
+  ["battle-of-algiers", "The Battle of Algiers", 1966, "Drama", 121, "Gillo Pontecorvo", "A city and its residents are changed by a struggle for independence and the forces sent to contain it.", "The_Battle_of_Algiers", "jpg"],
+  ["bonnie-and-clyde", "Bonnie and Clyde", 1967, "Crime", 111, "Arthur Penn", "Two young outsiders become national fugitives as their robberies turn into a public spectacle.", "Bonnie_and_Clyde_(film)", "jpg"],
+  ["godfather-part-ii", "The Godfather Part II", 1974, "Crime", 202, "Francis Ford Coppola", "Two generations of a family business unfold across New York and a changing American West.", "The_Godfather_Part_II", "jpg"],
+  ["jaws", "Jaws", 1975, "Thriller", 124, "Steven Spielberg", "A local police chief, a marine biologist, and a seasoned captain search for danger offshore.", "Jaws_(film)", "jpg"],
+  ["taxi-driver", "Taxi Driver", 1976, "Drama", 114, "Martin Scorsese", "A night-shift cab driver watches a changing city from behind the wheel and struggles to find a place in it.", "Taxi_Driver", "jpg"],
+  ["alien", "Alien", 1979, "Sci-Fi", 117, "Ridley Scott", "A commercial crew answers a distant signal and discovers something aboard their ship.", "Alien_(film)", "jpg"],
+  ["apocalypse-now", "Apocalypse Now", 1979, "War", 147, "Francis Ford Coppola", "A river journey into wartime Cambodia becomes a search for a renegade officer.", "Apocalypse_Now", "jpg"],
+  ["blade-runner", "Blade Runner", 1982, "Sci-Fi", 117, "Ridley Scott", "A detective in a rain-lit future is assigned to track down a group of escaped artificial beings.", "Blade_Runner", "png"],
+  ["amadeus", "Amadeus", 1984, "Drama", 160, "Miloš Forman", "A celebrated court composer looks back on his rivalry with a young musical prodigy.", "Amadeus_(film)", "jpg"],
+  ["do-the-right-thing", "Do the Right Thing", 1989, "Drama", 120, "Spike Lee", "On a hot Brooklyn day, neighbors, workers, and a local business contend with rising tension.", "Do_the_Right_Thing", "png"],
 ];
 
 const CLASSIC_MOVIES: Movie[] = CLASSIC_ROWS.map(([id, title, year, genre, runtime, director, synopsis, wikiSlug, posterExt], index) => ({
@@ -120,7 +152,9 @@ const ACADEMY_AWARD_IDS = new Set([
   "lost-weekend", "bicycle-thieves", "all-about-eve", "rashomon", "roman-holiday",
   "the-apartment", "lawrence-of-arabia", "to-kill-a-mockingbird", "graduate",
   "french-connection", "chinatown", "one-flew-over-cuckoos-nest", "all-presidents-men",
-  "raging-bull", "cinema-paradiso", "deer-hunter",
+  "raging-bull", "cinema-paradiso", "deer-hunter", "sunrise", "it-happened-one-night",
+  "rebecca", "philadelphia-story", "treasure-sierra-madre", "sunset-boulevard",
+  "high-noon", "on-waterfront", "godfather-part-ii", "jaws", "alien", "amadeus",
 ]);
 
 const HERO_POSTERS = [
@@ -777,7 +811,7 @@ export function Reelroom() {
       </div>
     </section>
     {homeCollectionSection("Digital only", "Platform picks", "Digital only.", "Compare illustrative platform options. The same title may also have a disc edition; availability is not retailer-verified.", MOVIES.filter((movie) => movie.platforms.length > 0))}
-    {homeCollectionSection("Physical only", "The disc shelf", "Physical only.", "Fifty classic films are listed on disc in this demo. Regional stock and release formats are not verified.", MOVIES.filter((movie) => movie.platforms.length === 0))}
+    {homeCollectionSection("Physical only", "The disc shelf", "Physical only.", "Eighty-two classics are listed on disc in this demo. Regional stock and release formats are not verified.", MOVIES.filter((movie) => movie.platforms.length === 0))}
     {homeCollectionSection("Top 100", "A growing shortlist", "The Top 100.", `Built for 100 films; ${MOVIES.length} titles are on the shelf today.`, MOVIES)}
     {homeCollectionSection("Academy Award films", "The gold standard", "Academy Award films.", "A collection of Academy Award-winning pictures, performances, writing, and craft.", MOVIES.filter((movie) => ACADEMY_AWARD_IDS.has(movie.id)))}
     <section className="rr-section compact">
@@ -809,7 +843,7 @@ export function Reelroom() {
     const collectionCopy: Record<Collection, string> = {
       "All films": "A considered collection across genres, decades, and the many ways to watch.",
       "Digital only": "Titles with example digital platform options. Digital access and current availability are not verified.",
-      "Physical only": "Fifty older classics listed on disc in this demonstration catalog; no digital options are represented here.",
+      "Physical only": "Eighty-two classic films listed on disc in this demonstration catalog; no digital options are represented here.",
       "Top 100": `A growing hundred-film collection. ${MOVIES.length} titles are available to browse today.`,
       "Academy Award films": "Films with Academy Award wins across picture, performance, writing, and craft.",
     };
