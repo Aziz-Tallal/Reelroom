@@ -719,7 +719,23 @@ function Logo({ onClick }: { onClick: () => void }) {
   </button>;
 }
 
-function Poster({ movie, onClick, saved, onFavorite }: { movie: Movie; onClick: () => void; saved: boolean; onFavorite: () => void }) {
+function Poster({
+  movie,
+  onClick,
+  saved,
+  onFavorite,
+  librarySaved,
+  libraryLocked,
+  onToggleLibrary,
+}: {
+  movie: Movie;
+  onClick: () => void;
+  saved: boolean;
+  onFavorite: () => void;
+  librarySaved: boolean;
+  libraryLocked: boolean;
+  onToggleLibrary: () => void;
+}) {
   const preview = useContext(PosterPreviewContext);
   const timerRef = useRef<number | null>(null);
   const closeTimerRef = useRef<number | null>(null);
@@ -734,6 +750,11 @@ function Poster({ movie, onClick, saved, onFavorite }: { movie: Movie; onClick: 
   const isTouchSelected = preview.selectedId === movie.id;
   const approvedTeaser = movie.teaser?.approvalStatus === "approved" && movie.teaser.reviewed ? movie.teaser : null;
   const posterSource = movie.posterPath ?? `/__mockup/images/reelroom-${movie.id}.${movie.posterExt ?? "jpg"}`;
+  const libraryActionLabel = libraryLocked
+    ? "Already in My Library"
+    : librarySaved
+      ? "Remove from My Library"
+      : "Add to My Library";
 
   const clearTimer = () => {
     if (timerRef.current !== null) window.clearTimeout(timerRef.current);
@@ -831,6 +852,18 @@ function Poster({ movie, onClick, saved, onFavorite }: { movie: Movie; onClick: 
     <div className="rr-card-actions">
       <button className="rr-card-action" onClick={(event) => { event.stopPropagation(); closePreview(); onClick(); }}>Details <ArrowRight size={12}/></button>
       <button className="rr-card-action" aria-label={`Favorite ${movie.title}`} onClick={(event) => { event.stopPropagation(); onFavorite(); }}><Heart size={13} fill={saved ? "currentColor" : "none"}/></button>
+      <button
+        className="rr-card-action rr-card-library-action"
+        type="button"
+        aria-label={`${libraryActionLabel}: ${movie.title}`}
+        aria-pressed={librarySaved}
+        title={libraryActionLabel}
+        disabled={libraryLocked}
+        data-testid={`button-card-library-${movie.id}`}
+        onClick={(event) => { event.stopPropagation(); onToggleLibrary(); }}
+      >
+        {librarySaved ? <Check size={13}/> : <Plus size={13}/>}
+      </button>
     </div>
     {isTouchSelected && <button className="rr-mobile-preview-button" onClick={(event) => { event.stopPropagation(); preview.setActiveId(movie.id); }}><Play size={13}/> Watch Preview</button>}
     {isExpanded && <div className="rr-preview-backdrop" onClick={(event) => { event.stopPropagation(); closePreview(); }}>
@@ -855,6 +888,17 @@ function Poster({ movie, onClick, saved, onFavorite }: { movie: Movie; onClick: 
           <div className="rr-preview-actions">
             <button className="rr-button" onClick={() => { closePreview(); onClick(); }}>View movie <ArrowRight size={14}/></button>
             <button className="rr-button secondary" onClick={onFavorite}><Heart size={14} fill={saved ? "currentColor" : "none"}/>{saved ? "In watchlist" : "Add to watchlist"}</button>
+            <button
+              className="rr-button secondary"
+              type="button"
+              aria-pressed={librarySaved}
+              disabled={libraryLocked}
+              data-testid={`button-preview-library-${movie.id}`}
+              onClick={onToggleLibrary}
+            >
+              {librarySaved ? <Check size={14}/> : <Plus size={14}/>}
+              {libraryActionLabel}
+            </button>
             {approvedTeaser?.hasAudio && <button className="rr-preview-sound" aria-label={soundEnabled ? "Mute teaser" : "Enable teaser sound"} onClick={() => setSoundEnabled((enabled) => !enabled)}>{soundEnabled ? "Sound on" : "Sound off"}</button>}
           </div>
           {!approvedTeaser && <p className="rr-preview-footnote">No manually reviewed teaser is available for this film yet. We’ll keep the poster in view rather than autoplay an unapproved clip.</p>}
@@ -864,11 +908,35 @@ function Poster({ movie, onClick, saved, onFavorite }: { movie: Movie; onClick: 
   </div>;
 }
 
-function MovieCard({ movie, onDetails, saved, onFavorite }: { movie: Movie; onDetails: () => void; saved: boolean; onFavorite: () => void }) {
+function MovieCard({
+  movie,
+  onDetails,
+  saved,
+  onFavorite,
+  librarySaved,
+  libraryLocked,
+  onToggleLibrary,
+}: {
+  movie: Movie;
+  onDetails: () => void;
+  saved: boolean;
+  onFavorite: () => void;
+  librarySaved: boolean;
+  libraryLocked: boolean;
+  onToggleLibrary: () => void;
+}) {
   const base = Math.min(...Object.values(PHYSICAL_PRICE.Buy));
   const availability = movie.platforms.length ? "Disc · Digital" : "Physical only";
   return <article className="rr-movie-card">
-    <Poster movie={movie} onClick={onDetails} saved={saved} onFavorite={onFavorite}/>
+    <Poster
+      movie={movie}
+      onClick={onDetails}
+      saved={saved}
+      onFavorite={onFavorite}
+      librarySaved={librarySaved}
+      libraryLocked={libraryLocked}
+      onToggleLibrary={onToggleLibrary}
+    />
     <div className="rr-movie-info">
       <h3 className="rr-movie-title">{movie.title}</h3>
       <div className="rr-movie-sub">{movie.isCriterion ? "Criterion Collection · Physical & digital" : <>{movie.year} <span aria-hidden="true">·</span> {movie.genre} <span aria-hidden="true">·</span> {movie.runtime} min</>}</div>
@@ -1020,6 +1088,7 @@ export function Reelroom() {
   const [watchlist, setWatchlist] = useState<string[]>(() => readStored("reelroom-watchlist", []));
   const [cart, setCart] = useState<CartLine[]>(() => readStored("reelroom-cart", []));
   const [orders, setOrders] = useState<DemoOrder[]>(() => readStored("reelroom-orders", []));
+  const [manualLibraryIds, setManualLibraryIds] = useState<string[]>(() => readStored("reelroom-manual-library", []));
   const [toast, setToast] = useState("");
   const [mobileOpen, setMobileOpen] = useState(false);
   const [search, setSearch] = useState("");
@@ -1048,6 +1117,10 @@ export function Reelroom() {
   const selectedMovie = movieFor(selectedMovieId);
   const cartCount = cart.reduce((sum, item) => sum + item.quantity, 0);
   const cartTotal = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
+  const orderedMovieIds = useMemo(
+    () => new Set(orders.flatMap((order) => order.items.map((item) => item.movieId))),
+    [orders],
+  );
   const genres = useMemo(() => ["All genres", ...Array.from(new Set(MOVIES.flatMap((movie) => movie.genres ?? [movie.genre]))).sort()], []);
   const catalogPrice = (movie: Movie) => {
     const digital = view === "digital" || modeFilter === "Digital";
@@ -1063,6 +1136,7 @@ export function Reelroom() {
   useEffect(() => { saveStored("reelroom-watchlist", watchlist); }, [watchlist]);
   useEffect(() => { saveStored("reelroom-cart", cart); }, [cart]);
   useEffect(() => { saveStored("reelroom-orders", orders); }, [orders]);
+  useEffect(() => { saveStored("reelroom-manual-library", manualLibraryIds); }, [manualLibraryIds]);
   useEffect(() => { if (!toast) return; const timeout = window.setTimeout(() => setToast(""), 2700); return () => window.clearTimeout(timeout); }, [toast]);
   useEffect(() => {
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
@@ -1148,6 +1222,24 @@ export function Reelroom() {
     const exists = watchlist.includes(id);
     setWatchlist((current) => exists ? current.filter((savedId) => savedId !== id) : [...current, id]);
     setToast(exists ? "Removed from your watchlist" : "Saved to your watchlist");
+  };
+  const isMovieInLibrary = (id: string) => manualLibraryIds.includes(id) || orderedMovieIds.has(id);
+  const isLibraryOrder = (id: string) => orderedMovieIds.has(id);
+  const libraryActionLabel = (id: string) => isLibraryOrder(id)
+    ? "Already in My Library"
+    : manualLibraryIds.includes(id)
+      ? "Remove from My Library"
+      : "Add to My Library";
+  const toggleManualLibrary = (id: string) => {
+    if (isLibraryOrder(id)) {
+      setToast("This film is already in your library");
+      return;
+    }
+    const exists = manualLibraryIds.includes(id);
+    setManualLibraryIds((current) => exists
+      ? current.filter((savedId) => savedId !== id)
+      : [...current, id]);
+    setToast(exists ? "Removed from your library" : "Added to your library");
   };
   const openDetails = (movie: Movie) => {
     setSelectedMovieId(movie.id);
@@ -1282,13 +1374,30 @@ export function Reelroom() {
   };
 
   const movieGrid = (items: Movie[], columns = "six") => items.length ? <div className={`rr-grid ${columns === "four" ? "four" : ""}`}>
-    {items.map((movie) => <MovieCard key={movie.id} movie={movie} saved={watchlist.includes(movie.id)} onDetails={() => openDetails(movie)} onFavorite={() => toggleFavorite(movie.id)}/>)}
+    {items.map((movie) => <MovieCard
+      key={movie.id}
+      movie={movie}
+      saved={watchlist.includes(movie.id)}
+      onDetails={() => openDetails(movie)}
+      onFavorite={() => toggleFavorite(movie.id)}
+      librarySaved={isMovieInLibrary(movie.id)}
+      libraryLocked={isLibraryOrder(movie.id)}
+      onToggleLibrary={() => toggleManualLibrary(movie.id)}
+    />)}
   </div> : <div className="rr-empty"><Film size={27} color="#00E054"/><h2>No films in this frame.</h2><p>Try a different search or clear a few filters to find your next favorite.</p><button className="rr-button secondary small" onClick={resetFilters}>Clear filters</button></div>;
   const rotatingMovieGrid = (items: Movie[], columns: "four" | "six", ariaLabel: string) => items.length ? <RotatingMovieShelf
     items={items}
     columns={columns}
     ariaLabel={ariaLabel}
-    renderMovie={(movie) => <MovieCard movie={movie} saved={watchlist.includes(movie.id)} onDetails={() => openDetails(movie)} onFavorite={() => toggleFavorite(movie.id)}/>}
+    renderMovie={(movie) => <MovieCard
+      movie={movie}
+      saved={watchlist.includes(movie.id)}
+      onDetails={() => openDetails(movie)}
+      onFavorite={() => toggleFavorite(movie.id)}
+      librarySaved={isMovieInLibrary(movie.id)}
+      libraryLocked={isLibraryOrder(movie.id)}
+      onToggleLibrary={() => toggleManualLibrary(movie.id)}
+    />}
   /> : movieGrid(items, columns);
   const homeCollectionSection = (name: Collection, eyebrow: string, title: string, copy: string, films: Movie[]) => <section className="rr-section rr-home-collection" key={name} id={name === "Animated movies" ? "animation-archive" : undefined}>
     <div className="rr-wrap">
@@ -1446,7 +1555,17 @@ export function Reelroom() {
     return <main>
       <div className="rr-wrap" style={{ paddingTop: 22 }}><button className="rr-text-link" onClick={() => navigate("browse")}><ArrowLeft size={14}/> Back to movies</button></div>
       <section className="rr-detail-hero"><div className="rr-wrap rr-detail-grid">
-        <div className="rr-detail-poster"><Poster movie={selectedMovie} onClick={() => {}} saved={watchlist.includes(selectedMovie.id)} onFavorite={() => toggleFavorite(selectedMovie.id)}/></div>
+        <div className="rr-detail-poster">
+          <Poster
+            movie={selectedMovie}
+            onClick={() => {}}
+            saved={watchlist.includes(selectedMovie.id)}
+            onFavorite={() => toggleFavorite(selectedMovie.id)}
+            librarySaved={isMovieInLibrary(selectedMovie.id)}
+            libraryLocked={isLibraryOrder(selectedMovie.id)}
+            onToggleLibrary={() => toggleManualLibrary(selectedMovie.id)}
+          />
+        </div>
         <div className="rr-detail-copy">
           <span className="rr-eyebrow">The REELROOM archive</span><h1>{selectedMovie.title}</h1>
            <div className="rr-meta-line">{selectedMovie.isCriterion ? <><span>Criterion Collection</span><span>Physical &amp; digital demo options</span></> : <><span>{selectedMovie.year}</span><span>{selectedMovie.genre}</span><span>{selectedMovie.runtime} min</span></>}</div>
@@ -1454,7 +1573,21 @@ export function Reelroom() {
            <p className="rr-detail-director">{selectedMovie.isCriterion ? "CURATED COLLECTION" : "DIRECTED BY"} <strong>{selectedMovie.director}</strong></p>
           {selectedMovie.isAnimated && selectedMovie.sourcePage && <a className="rr-poster-source" href={selectedMovie.sourcePage} target="_blank" rel="noreferrer">Poster reference · Wikipedia</a>}
           <div className="rr-divider"/>
-           <div className="rr-demo-note">{selectedMovie.isCriterion ? "Criterion formats, digital platforms, prices, and availability below are illustrative REELROOM options only—not verified stock or streaming rights." : "All availability and prices below are demonstration examples. No real retailer inventory, licensed streaming access, or payments."}</div>
+            <div className="rr-demo-note">{selectedMovie.isCriterion ? "Criterion formats, digital platforms, prices, and availability below are illustrative REELROOM options only—not verified stock or streaming rights." : "All availability and prices below are demonstration examples. No real retailer inventory, licensed streaming access, or payments."}</div>
+            <div className="rr-detail-library-action">
+              <button
+                className="rr-button secondary"
+                type="button"
+                data-testid={`button-detail-library-${selectedMovie.id}`}
+                aria-pressed={isMovieInLibrary(selectedMovie.id)}
+                disabled={isLibraryOrder(selectedMovie.id)}
+                onClick={() => toggleManualLibrary(selectedMovie.id)}
+              >
+                {isMovieInLibrary(selectedMovie.id) ? <Check size={14}/> : <Plus size={14}/>}
+                {libraryActionLabel(selectedMovie.id)}
+              </button>
+              <span>Manual entries save the title only.</span>
+            </div>
         </div>
         <div className="rr-option-panel">
           <span className="rr-eyebrow">Choose your experience</span><h3>How do you want it?</h3>
@@ -1554,9 +1687,16 @@ export function Reelroom() {
       }
     }
 
+    for (const movieId of manualLibraryIds) {
+      if (grouped.has(movieId)) continue;
+      const movie = MOVIES.find((candidate) => candidate.id === movieId);
+      if (movie) grouped.set(movieId, { movie, editions: new Map() });
+    }
+
     const libraryFilms: LibraryShelfFilm[] = Array.from(grouped.values()).map(({ movie, editions }) => ({
       movie,
       editions: Array.from(editions.values()),
+      manuallyAdded: editions.size === 0 && manualLibraryIds.includes(movie.id),
     }));
 
     return <LibraryShelf films={libraryFilms} onBrowse={() => navigate("browse")} />;

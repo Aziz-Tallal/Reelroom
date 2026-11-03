@@ -24,6 +24,7 @@ export type LibraryShelfFilm = {
     posterExt?: string;
   };
   editions: LibraryEdition[];
+  manuallyAdded?: boolean;
 };
 
 type Filter = "All" | "Physical" | "Digital";
@@ -286,7 +287,7 @@ export function LibraryShelf({ films, onBrowse }: LibraryShelfProps) {
                                   if (element) caseRefs.current.set(movie.id, element);
                                   else caseRefs.current.delete(movie.id);
                                 }}
-                                aria-label={`${active ? "Close" : "Open"} ${movie.title} case; ${editions.length} media type${editions.length === 1 ? "" : "s"}`}
+                                aria-label={`${active ? "Close" : "Open"} ${movie.title} case; ${editions.length === 0 ? "title only" : `${editions.length} media type${editions.length === 1 ? "" : "s"}`}`}
                                 aria-haspopup="dialog"
                                 aria-expanded={active}
                                 aria-controls={active ? "rr-dvd-film-dialog" : undefined}
@@ -300,7 +301,9 @@ export function LibraryShelf({ films, onBrowse }: LibraryShelfProps) {
                                   {editions.some((edition) => edition.mode === "Buy") && <i className="owned-dot" />}
                                   {editions.some((edition) => edition.mode === "Rent") && <i className="rental-dot" />}
                                 </span>
-                                <span className="rr-dvd-spine-format" aria-hidden="true">{hasPhysical && hasDigital ? "MULTI" : hasPhysical ? "DISC" : "DIGITAL"}</span>
+                                <span className="rr-dvd-spine-format" aria-hidden="true">
+                                  {editions.length === 0 ? "MANUAL" : hasPhysical && hasDigital ? "MULTI" : hasPhysical ? "DISC" : "DIGITAL"}
+                                </span>
                               </button>
                             );
                           })}
@@ -377,9 +380,9 @@ export function LibraryShelf({ films, onBrowse }: LibraryShelfProps) {
                 <div className="rr-dvd-editions">
                   <div className="rr-dvd-editions-head">
                     <span>Media in your collection</span>
-                    <small>{selected.editions.length} unique edition{selected.editions.length === 1 ? "" : "s"}</small>
+                    <small>{selected.manuallyAdded ? "Title only" : `${selected.editions.length} unique edition${selected.editions.length === 1 ? "" : "s"}`}</small>
                   </div>
-                  {selected.editions.map((edition, index) => (
+                  {selected.editions.length > 0 ? selected.editions.map((edition, index) => (
                     <article className={`rr-dvd-edition ${edition.mode === "Rent" ? "rental" : "owned"}`} key={`${edition.experience}-${edition.mode}-${edition.option}-${index}`}>
                       <span className="rr-dvd-edition-icon">{edition.experience === "Physical" ? <Disc3 size={16} /> : <MonitorPlay size={16} />}</span>
                       <span className="rr-dvd-edition-main">
@@ -390,7 +393,11 @@ export function LibraryShelf({ films, onBrowse }: LibraryShelfProps) {
                       {edition.mode === "Rent" && edition.rental && <span className="rr-dvd-edition-date">{edition.rental}</span>}
                       {edition.quantity > 1 && <span className="rr-dvd-copy-count">{edition.quantity} copies</span>}
                     </article>
-                  ))}
+                  )) : (
+                    <p className="rr-dvd-manual-note">
+                      {selected.manuallyAdded ? "Manually added · title only; no format details recorded." : "No format details recorded."}
+                    </p>
+                  )}
                 </div>
               </div>
             </section>

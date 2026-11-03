@@ -101,6 +101,7 @@
 .rr-poster:hover .rr-card-actions, .rr-poster:focus-within .rr-card-actions { opacity: 1; transform: translateY(0); }
 .rr-card-action { height: 32px; background: rgba(15,19,22,.9); border: 1px solid rgba(255,255,255,.2); color: white; display: inline-flex; align-items: center; justify-content: center; gap: 5px; padding: 0 9px; cursor: pointer; font-size: 9px; font-weight: 700; }
 .rr-card-action:hover { color: var(--rr-green); border-color: var(--rr-green); }
+.rr-card-action:disabled { cursor: not-allowed; opacity: .55; }
 .rr-fav { position: absolute; z-index: 2; top: 8px; right: 8px; height: 32px; width: 32px; border: 1px solid rgba(255,255,255,.24); background: rgba(13,16,19,.72); display: grid; place-items: center; cursor: pointer; color: white; }
 .rr-fav.saved { color: var(--rr-green); border-color: var(--rr-green); }
 .rr-movie-info { padding-top: 11px; }
@@ -169,6 +170,8 @@
 .rr-meta-line span + span::before { content: "·"; color: var(--rr-green); padding-right: 9px; }
 .rr-detail-copy .rr-synopsis { color: #bbc3c9; font-size: 12px; line-height: 1.8; margin-top: 23px; max-width: 530px; }
 .rr-detail-director { color: var(--rr-muted); font-size: 10px; margin-top: 14px; }
+.rr-detail-library-action { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 16px; }
+.rr-detail-library-action > span { color: var(--rr-muted); font-size: 9px; line-height: 1.5; }
 .rr-option-panel { border: 1px solid var(--rr-line); background: #1b2127; padding: 20px; }
 .rr-option-panel h3 { font: 600 17px "Space Grotesk", sans-serif; margin: 7px 0 14px !important; }
 .rr-field-label { display: block; color: #aab4bc; font-size: 9px; font-weight: 700; letter-spacing: .12em; margin: 18px 0 8px; text-transform: uppercase; }
