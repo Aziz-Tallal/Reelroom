@@ -871,7 +871,7 @@ function MovieCard({ movie, onDetails, saved, onFavorite }: { movie: Movie; onDe
     <div className="rr-movie-info">
       <h3 className="rr-movie-title">{movie.title}</h3>
       <div className="rr-movie-sub">{movie.isCriterion ? "Criterion Collection · Physical & digital" : <>{movie.year} <span aria-hidden="true">·</span> {movie.genre} <span aria-hidden="true">·</span> {movie.runtime} min</>}</div>
-      <div className="rr-movie-bottom"><span className="rr-price">From {money(base)} <small>demo</small></span><span className="rr-tags">{availability}{ACADEMY_AWARD_IDS.has(movie.id) ? " · Academy award" : ""}</span></div>
+      <div className="rr-movie-bottom"><span className="rr-price">From {money(base)}</span><span className="rr-tags">{availability}{ACADEMY_AWARD_IDS.has(movie.id) ? " · Academy award" : ""}</span></div>
     </div>
   </article>;
 }
