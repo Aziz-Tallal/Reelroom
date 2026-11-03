@@ -130,6 +130,46 @@
   padding: 26px 0 19px;
 }
 
+.rr-dvd-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.rr-dvd-sort {
+  display: flex;
+  min-height: 34px;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 9px;
+  border: 1px solid var(--dvd-rule);
+  border-radius: 4px;
+  background: rgba(255, 255, 255, .018);
+}
+
+.rr-dvd-sort > span {
+  color: #8f9992;
+  font-size: 8px;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.rr-dvd-sort select {
+  max-width: 170px;
+  border: 0;
+  background: transparent;
+  color: #e9e6dc;
+  cursor: pointer;
+  font: 9px "Space Grotesk", sans-serif;
+  outline-offset: 3px;
+}
+
+.rr-dvd-sort option {
+  background: #14191a;
+  color: #e9e6dc;
+}
+
 .rr-dvd-toolbar h2 {
   margin-top: 7px !important;
   font: 500 23px/1.1 "Space Grotesk", sans-serif;
@@ -170,15 +210,13 @@
 
 .rr-dvd-cases {
   display: flex;
+  flex-wrap: wrap;
   min-height: 230px;
   align-items: stretch;
   justify-content: center;
   gap: 8px;
-  overflow-x: auto;
-  overflow-y: visible;
+  overflow: visible;
   padding: 20px 18px 0;
-  scrollbar-color: #75664f transparent;
-  scrollbar-width: thin;
 }
 
 .rr-dvd-case {
@@ -580,6 +618,18 @@
   to { opacity: 1; transform: translateX(0) translateY(0); }
 }
 
+@media (max-width: 900px) {
+  .rr-dvd .rr-dvd-toolbar {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .rr-dvd-controls {
+    width: 100%;
+    justify-content: space-between;
+  }
+}
+
 @media (max-width: 720px) {
   .rr-dvd .rr-wrap {
     width: calc(100% - 36px);
@@ -610,6 +660,11 @@
     flex-direction: column;
   }
 
+  .rr-dvd-controls {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
   .rr-dvd .rr-dvd-filters {
     width: 100%;
   }
@@ -617,6 +672,16 @@
   .rr-dvd .rr-dvd-filters button {
     min-width: 0;
     flex: 1;
+  }
+
+  .rr-dvd-sort {
+    justify-content: space-between;
+  }
+
+  .rr-dvd-sort select {
+    max-width: none;
+    flex: 1;
+    text-align: right;
   }
 
   .rr-dvd-cases {

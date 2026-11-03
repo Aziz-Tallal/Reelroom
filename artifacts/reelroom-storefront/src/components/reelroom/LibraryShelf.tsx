@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { ArrowDownRight, ArrowLeft, Clapperboard, Disc3, MonitorPlay, X } from "lucide-react";
 import "./LibraryShelf.css";
 
@@ -26,18 +26,64 @@ export type LibraryShelfFilm = {
 };
 
 type Filter = "All" | "Physical" | "Digital";
+type SortOrder = "title" | "year" | "color";
 
 type LibraryShelfProps = {
   films: LibraryShelfFilm[];
   onBrowse: () => void;
 };
 
-const FILMS_PER_SHELF = 14;
+function titleOrder(a: LibraryShelfFilm, b: LibraryShelfFilm) {
+  return a.movie.title.localeCompare(b.movie.title, undefined, { sensitivity: "base", numeric: true });
+}
+
+function colorKey(color: string) {
+  const match = /^#([a-f\d]{3}|[a-f\d]{6})$/i.exec(color.trim());
+  if (!match) return { valid: false, hue: 0, saturation: 0, lightness: 0 };
+
+  const shortHex = match[1].length === 3;
+  const hex = shortHex ? match[1].split("").map((digit) => digit + digit).join("") : match[1];
+  const red = parseInt(hex.slice(0, 2), 16) / 255;
+  const green = parseInt(hex.slice(2, 4), 16) / 255;
+  const blue = parseInt(hex.slice(4, 6), 16) / 255;
+  const max = Math.max(red, green, blue);
+  const min = Math.min(red, green, blue);
+  const delta = max - min;
+  const lightness = (max + min) / 2;
+  let hue = 0;
+
+  if (delta > 0) {
+    if (max === red) hue = ((green - blue) / delta) % 6;
+    else if (max === green) hue = (blue - red) / delta + 2;
+    else hue = (red - green) / delta + 4;
+    hue = (hue * 60 + 360) % 360;
+  }
+
+  return {
+    valid: true,
+    hue,
+    saturation: delta === 0 ? 0 : delta / (1 - Math.abs(2 * lightness - 1)),
+    lightness,
+  };
+}
+
+function colorOrder(a: LibraryShelfFilm, b: LibraryShelfFilm) {
+  const colorA = colorKey(a.movie.palette[0]);
+  const colorB = colorKey(b.movie.palette[0]);
+  return Number(colorB.valid) - Number(colorA.valid)
+    || colorA.hue - colorB.hue
+    || colorA.saturation - colorB.saturation
+    || colorA.lightness - colorB.lightness
+    || titleOrder(a, b);
+}
 
 export function LibraryShelf({ films, onBrowse }: LibraryShelfProps) {
   const [filter, setFilter] = useState<Filter>("All");
+  const [sortOrder, setSortOrder] = useState<SortOrder>("title");
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [shelfCapacity, setShelfCapacity] = useState(14);
   const caseRefs = useRef(new Map<string, HTMLButtonElement>());
+  const stageRef = useRef<HTMLDivElement>(null);
 
   const filmsWithFormats = useMemo(() => films.map((film) => ({
     ...film,
@@ -51,13 +97,22 @@ export function LibraryShelf({ films, onBrowse }: LibraryShelfProps) {
     Digital: filmsWithFormats.filter((film) => film.hasDigital).length,
   };
 
-  const visibleFilms = filmsWithFormats.filter((film) => (
+  const sortedFilms = useMemo(() => {
+    const orderedFilms = [...filmsWithFormats];
+    if (sortOrder === "year") {
+      return orderedFilms.sort((a, b) => a.movie.year - b.movie.year || titleOrder(a, b));
+    }
+    if (sortOrder === "color") return orderedFilms.sort(colorOrder);
+    return orderedFilms.sort(titleOrder);
+  }, [filmsWithFormats, sortOrder]);
+
+  const visibleFilms = sortedFilms.filter((film) => (
     filter === "All" ||
     (filter === "Physical" ? film.hasPhysical : film.hasDigital)
   ));
   const selected = filmsWithFormats.find((film) => film.movie.id === selectedId);
-  const shelves = Array.from({ length: Math.ceil(visibleFilms.length / FILMS_PER_SHELF) }, (_, index) => (
-    visibleFilms.slice(index * FILMS_PER_SHELF, (index + 1) * FILMS_PER_SHELF)
+  const shelves = Array.from({ length: Math.ceil(visibleFilms.length / shelfCapacity) }, (_, index) => (
+    visibleFilms.slice(index * shelfCapacity, (index + 1) * shelfCapacity)
   ));
 
   useEffect(() => {
@@ -71,6 +126,34 @@ export function LibraryShelf({ films, onBrowse }: LibraryShelfProps) {
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [selectedId]);
+
+  useLayoutEffect(() => {
+    const stage = stageRef.current;
+    if (!stage || visibleFilms.length === 0) return;
+
+    const updateCapacity = () => {
+      const cases = stage.querySelector<HTMLElement>(".rr-dvd-cases");
+      const firstCase = cases?.querySelector<HTMLElement>(".rr-dvd-case");
+      if (!cases || !firstCase) return;
+
+      const caseStyles = window.getComputedStyle(firstCase);
+      const rowStyles = window.getComputedStyle(cases);
+      const caseWidth = Number.parseFloat(caseStyles.flexBasis);
+      const gap = Number.parseFloat(rowStyles.columnGap) || 0;
+      const padding = (Number.parseFloat(rowStyles.paddingLeft) || 0)
+        + (Number.parseFloat(rowStyles.paddingRight) || 0);
+      const availableWidth = cases.clientWidth - padding;
+      if (!Number.isFinite(caseWidth) || caseWidth <= 0) return;
+
+      const nextCapacity = Math.max(1, Math.floor((availableWidth + gap) / (caseWidth + gap)));
+      setShelfCapacity((current) => current === nextCapacity ? current : nextCapacity);
+    };
+
+    updateCapacity();
+    const observer = new ResizeObserver(updateCapacity);
+    observer.observe(stage);
+    return () => observer.disconnect();
+  }, [filter, visibleFilms.length]);
 
   const chooseFilter = (value: Filter) => {
     setFilter(value);
@@ -105,12 +188,34 @@ export function LibraryShelf({ films, onBrowse }: LibraryShelfProps) {
 
           <div className="rr-dvd-toolbar">
             <div><span className="rr-eyebrow">Browse the shelf</span><h2>Collected &amp; kept.</h2></div>
-            <div className="rr-library-filters rr-dvd-filters" role="group" aria-label="Filter unique films by media type">
-              {(["All", "Physical", "Digital"] as const).map((value) => (
-                <button key={value} type="button" className={filter === value ? "active" : ""} aria-pressed={filter === value} onClick={() => chooseFilter(value)}>
-                  {value}<span>{String(counts[value]).padStart(2, "0")}</span>
-                </button>
-              ))}
+            <div className="rr-dvd-controls">
+              <div className="rr-library-filters rr-dvd-filters" role="group" aria-label="Filter unique films by media type">
+                {(["All", "Physical", "Digital"] as const).map((value) => (
+                  <button
+                    key={value}
+                    type="button"
+                    data-testid={`button-library-filter-${value.toLowerCase()}`}
+                    className={filter === value ? "active" : ""}
+                    aria-pressed={filter === value}
+                    onClick={() => chooseFilter(value)}
+                  >
+                    {value}<span>{String(counts[value]).padStart(2, "0")}</span>
+                  </button>
+                ))}
+              </div>
+              <label className="rr-dvd-sort">
+                <span>Sort by</span>
+                <select
+                  data-testid="select-library-sort"
+                  aria-label="Sort films"
+                  value={sortOrder}
+                  onChange={(event) => setSortOrder(event.currentTarget.value as SortOrder)}
+                >
+                  <option value="title">Title A–Z</option>
+                  <option value="year">Year: oldest first</option>
+                  <option value="color">Color spectrum</option>
+                </select>
+              </label>
             </div>
           </div>
 
@@ -124,18 +229,19 @@ export function LibraryShelf({ films, onBrowse }: LibraryShelfProps) {
             </div>
           ) : (
             <>
-              <div className="rr-dvd-stage">
+              <div className="rr-dvd-stage" ref={stageRef}>
                 {visibleFilms.length > 0 ? (
                   <div className="rr-dvd-shelves" aria-label={`${visibleFilms.length} unique films`}>
                     {shelves.map((shelf, shelfIndex) => (
                       <div className="rr-dvd-shelf" key={`shelf-${shelfIndex}`}>
-                  <div className="rr-dvd-cases" role="group" aria-label={`Films on shelf ${shelfIndex + 1}`}>
+                        <div className="rr-dvd-cases" role="group" aria-label={`Films on shelf ${shelfIndex + 1}`}>
                           {shelf.map(({ movie, editions, hasPhysical, hasDigital }, index) => {
                             const active = selectedId === movie.id;
                             return (
                               <button
                                 className={`rr-dvd-case${active ? " is-selected" : ""}`}
                                 type="button"
+                                data-testid={`button-library-film-${movie.id}`}
                                 key={movie.id}
                                 ref={(element) => {
                                   if (element) caseRefs.current.set(movie.id, element);
