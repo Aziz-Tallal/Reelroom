@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
-import { ArrowDownRight, ArrowLeft, Clapperboard, Disc3, MonitorPlay, X } from "lucide-react";
+import { createPortal } from "react-dom";
+import { ArrowDownRight, Clapperboard, Disc3, MonitorPlay, X } from "lucide-react";
 import "./LibraryShelf.css";
 
 export type LibraryEdition = {
@@ -83,6 +84,8 @@ export function LibraryShelf({ films, onBrowse }: LibraryShelfProps) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [shelfCapacity, setShelfCapacity] = useState(14);
   const caseRefs = useRef(new Map<string, HTMLButtonElement>());
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const dialogCloseRef = useRef<HTMLButtonElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
 
   const filmsWithFormats = useMemo(() => films.map((film) => ({
@@ -117,14 +120,50 @@ export function LibraryShelf({ films, onBrowse }: LibraryShelfProps) {
 
   useEffect(() => {
     if (!selectedId) return;
+
+    const previousOverflow = document.body.style.overflow;
+    const siteShell = document.querySelector<HTMLElement>(".rr-site-shell");
+    const previousInert = siteShell?.inert ?? false;
+    document.body.style.overflow = "hidden";
+    if (siteShell) siteShell.inert = true;
+
+    const focusFrame = window.requestAnimationFrame(() => dialogCloseRef.current?.focus());
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
+        event.preventDefault();
         setSelectedId(null);
-        window.requestAnimationFrame(() => caseRefs.current.get(selectedId)?.focus());
+        return;
+      }
+
+      if (event.key !== "Tab") return;
+      const focusable = dialogRef.current?.querySelectorAll<HTMLElement>(
+        'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+      );
+      const focusableItems = Array.from(focusable ?? []);
+      if (focusableItems.length === 0) {
+        event.preventDefault();
+        dialogRef.current?.focus();
+        return;
+      }
+
+      const first = focusableItems[0];
+      const last = focusableItems[focusableItems.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
       }
     };
     window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
+    return () => {
+      window.cancelAnimationFrame(focusFrame);
+      window.removeEventListener("keydown", handleKeyDown);
+      document.body.style.overflow = previousOverflow;
+      if (siteShell) siteShell.inert = previousInert;
+      window.requestAnimationFrame(() => caseRefs.current.get(selectedId)?.focus());
+    };
   }, [selectedId]);
 
   useLayoutEffect(() => {
@@ -248,8 +287,9 @@ export function LibraryShelf({ films, onBrowse }: LibraryShelfProps) {
                                   else caseRefs.current.delete(movie.id);
                                 }}
                                 aria-label={`${active ? "Close" : "Open"} ${movie.title} case; ${editions.length} media type${editions.length === 1 ? "" : "s"}`}
+                                aria-haspopup="dialog"
                                 aria-expanded={active}
-                                aria-controls="rr-dvd-reveal"
+                                aria-controls={active ? "rr-dvd-film-dialog" : undefined}
                                 onClick={() => setSelectedId(active ? null : movie.id)}
                                 style={{ "--case-a": movie.palette[0], "--case-b": movie.palette[1], "--case-index": index } as CSSProperties}
                               >
@@ -282,66 +322,6 @@ export function LibraryShelf({ films, onBrowse }: LibraryShelfProps) {
                 )}
                 <p className="rr-dvd-hint"><ArrowDownRight size={14} /> Select a case to see its poster and editions</p>
               </div>
-
-              <section
-                id="rr-dvd-reveal"
-                className={`rr-dvd-reveal${selected ? " is-open" : ""}`}
-                aria-live="polite"
-                aria-label="Selected film details"
-                aria-hidden={!selected}
-              >
-                {selected ? (
-                  <>
-                    <button
-                      className="rr-dvd-close"
-                      type="button"
-                      onClick={() => {
-                        const filmId = selected.movie.id;
-                        setSelectedId(null);
-                        window.requestAnimationFrame(() => caseRefs.current.get(filmId)?.focus());
-                      }}
-                      aria-label="Close film details"
-                    >
-                      <X size={17} />
-                    </button>
-                    <div className="rr-dvd-reveal-poster">
-                      <img
-                        src={selected.movie.posterPath ?? `/__mockup/images/reelroom-${selected.movie.id}.${selected.movie.posterExt ?? "jpg"}`}
-                        alt={`${selected.movie.title} poster`}
-                      />
-                      <span>REELROOM ARCHIVE</span>
-                    </div>
-                    <div className="rr-dvd-reveal-copy">
-                      <span className="rr-eyebrow">Selected from your shelf</span>
-                      <h2>{selected.movie.title}</h2>
-                      <div className="rr-dvd-meta">
-                        <span>{selected.movie.year}</span><i /><span>{selected.movie.genre}</span><i /><span>Dir. {selected.movie.director}</span>
-                      </div>
-                      <p className="rr-dvd-synopsis">{selected.movie.synopsis}</p>
-                      <div className="rr-dvd-editions">
-                        <div className="rr-dvd-editions-head">
-                          <span>Media in your collection</span>
-                          <small>{selected.editions.length} unique edition{selected.editions.length === 1 ? "" : "s"}</small>
-                        </div>
-                        {selected.editions.map((edition, index) => (
-                          <article className={`rr-dvd-edition ${edition.mode === "Rent" ? "rental" : "owned"}`} key={`${edition.experience}-${edition.mode}-${edition.option}-${index}`}>
-                            <span className="rr-dvd-edition-icon">{edition.experience === "Physical" ? <Disc3 size={16} /> : <MonitorPlay size={16} />}</span>
-                            <span className="rr-dvd-edition-main">
-                              <strong>{edition.option}</strong>
-                              <small>{edition.experience === "Physical" ? "Physical format" : "Digital platform"}</small>
-                            </span>
-                            <span className={`rr-dvd-ownership ${edition.mode === "Rent" ? "rental" : "owned"}`}>{edition.mode === "Rent" ? "Rented" : "Owned"}</span>
-                            {edition.mode === "Rent" && edition.rental && <span className="rr-dvd-edition-date">{edition.rental}</span>}
-                            {edition.quantity > 1 && <span className="rr-dvd-copy-count">{edition.quantity} copies</span>}
-                          </article>
-                        ))}
-                      </div>
-                    </div>
-                  </>
-                ) : (
-                  <span className="rr-dvd-reveal-placeholder"><ArrowLeft size={15} /> Your selected film will open here</span>
-                )}
-              </section>
             </>
           )}
 
@@ -351,6 +331,73 @@ export function LibraryShelf({ films, onBrowse }: LibraryShelfProps) {
           </footer>
         </section>
       </main>
+      {selected && createPortal(
+        <div
+          className="rr-dvd-modal-backdrop"
+          onClick={(event) => {
+            if (event.target === event.currentTarget) setSelectedId(null);
+          }}
+        >
+          <div
+            id="rr-dvd-film-dialog"
+            className="rr-dvd-modal"
+            ref={dialogRef}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="rr-dvd-dialog-title"
+            aria-describedby="rr-dvd-dialog-description"
+            data-testid="dialog-library-film"
+            tabIndex={-1}
+          >
+            <button
+              className="rr-dvd-close"
+              type="button"
+              ref={dialogCloseRef}
+              onClick={() => setSelectedId(null)}
+              aria-label="Close film details"
+              data-testid="button-close-library-film"
+            >
+              <X size={17} />
+            </button>
+            <section className="rr-dvd-reveal is-open">
+              <div className="rr-dvd-reveal-poster">
+                <img
+                  src={selected.movie.posterPath ?? `/__mockup/images/reelroom-${selected.movie.id}.${selected.movie.posterExt ?? "jpg"}`}
+                  alt={`${selected.movie.title} poster`}
+                />
+                <span>REELROOM ARCHIVE</span>
+              </div>
+              <div className="rr-dvd-reveal-copy">
+                <span className="rr-eyebrow">Selected from your shelf</span>
+                <h2 id="rr-dvd-dialog-title">{selected.movie.title}</h2>
+                <div className="rr-dvd-meta">
+                  <span>{selected.movie.year}</span><i /><span>{selected.movie.genre}</span><i /><span>Dir. {selected.movie.director}</span>
+                </div>
+                <p className="rr-dvd-synopsis" id="rr-dvd-dialog-description">{selected.movie.synopsis}</p>
+                <div className="rr-dvd-editions">
+                  <div className="rr-dvd-editions-head">
+                    <span>Media in your collection</span>
+                    <small>{selected.editions.length} unique edition{selected.editions.length === 1 ? "" : "s"}</small>
+                  </div>
+                  {selected.editions.map((edition, index) => (
+                    <article className={`rr-dvd-edition ${edition.mode === "Rent" ? "rental" : "owned"}`} key={`${edition.experience}-${edition.mode}-${edition.option}-${index}`}>
+                      <span className="rr-dvd-edition-icon">{edition.experience === "Physical" ? <Disc3 size={16} /> : <MonitorPlay size={16} />}</span>
+                      <span className="rr-dvd-edition-main">
+                        <strong>{edition.option}</strong>
+                        <small>{edition.experience === "Physical" ? "Physical format" : "Digital platform"}</small>
+                      </span>
+                      <span className={`rr-dvd-ownership ${edition.mode === "Rent" ? "rental" : "owned"}`}>{edition.mode === "Rent" ? "Rented" : "Owned"}</span>
+                      {edition.mode === "Rent" && edition.rental && <span className="rr-dvd-edition-date">{edition.rental}</span>}
+                      {edition.quantity > 1 && <span className="rr-dvd-copy-count">{edition.quantity} copies</span>}
+                    </article>
+                  ))}
+                </div>
+              </div>
+            </section>
+          </div>
+        </div>,
+        document.body,
+      )}
     </div>
   );
 }

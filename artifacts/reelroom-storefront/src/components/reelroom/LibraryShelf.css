@@ -357,41 +357,50 @@
   color: var(--dvd-brass);
 }
 
-.rr-dvd-reveal {
+.rr-dvd-modal-backdrop {
+  --dvd-ink: #e9e6dc;
+  --dvd-muted: #9aa39d;
+  --dvd-rule: rgba(227, 231, 219, .12);
+  --dvd-brass: #c9a975;
+  --dvd-green: #9ac4a4;
+  position: fixed;
+  z-index: 10000;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: rgba(4, 8, 8, .82);
+  color: var(--dvd-ink);
+  backdrop-filter: blur(7px);
+  animation: rr-dvd-backdrop-in .2s ease-out both;
+}
+
+.rr-dvd-modal {
   position: relative;
-  display: flex;
-  min-height: 76px;
-  align-items: center;
-  justify-content: center;
-  margin-top: 24px;
-  padding: 14px;
-  border: 1px solid rgba(201, 169, 117, .2);
-  background: #1a2020;
-  opacity: .72;
-  transform: translateY(5px);
-  transition: opacity .3s, transform .36s cubic-bezier(.2, .7, .2, 1);
+  width: min(920px, 100%);
+  max-height: calc(100dvh - 32px);
+  outline: none;
 }
 
 .rr-dvd-reveal.is-open {
+  position: relative;
   display: grid;
+  width: 100%;
   min-height: 180px;
+  max-height: calc(100dvh - 32px);
   grid-template-columns: 180px minmax(0, 1fr);
   align-items: start;
   gap: 25px;
-  padding: 22px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  margin: 0;
+  padding: 48px 22px 22px;
+  border: 1px solid rgba(201, 169, 117, .2);
   background: linear-gradient(110deg, rgba(201, 169, 117, .065), transparent 45%), #1a2020;
   opacity: 1;
   transform: translateY(0);
   animation: rr-dvd-reveal-in .42s cubic-bezier(.2, .72, .18, 1) both;
-}
-
-.rr-dvd-reveal-placeholder {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  color: #87928c;
-  font-size: 10px;
-  letter-spacing: .04em;
+  box-shadow: 0 28px 90px rgba(0, 0, 0, .58);
 }
 
 .rr-dvd-reveal-poster {
@@ -542,7 +551,7 @@
 
 .rr-dvd-close {
   position: absolute;
-  z-index: 2;
+  z-index: 4;
   top: 10px;
   right: 10px;
   display: grid;
@@ -606,6 +615,11 @@
   color: #77827b;
   font: 8px "Space Mono", monospace;
   letter-spacing: .14em;
+}
+
+@keyframes rr-dvd-backdrop-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 @keyframes rr-dvd-arrive {
@@ -703,7 +717,7 @@
   .rr-dvd-reveal.is-open {
     grid-template-columns: 92px minmax(0, 1fr);
     gap: 15px;
-    padding: 15px;
+    padding: 48px 15px 15px;
   }
 
   .rr-dvd-reveal-copy {
@@ -736,7 +750,9 @@
 @media (prefers-reduced-motion: reduce) {
   .rr-dvd *,
   .rr-dvd *::before,
-  .rr-dvd *::after {
+  .rr-dvd *::after,
+  .rr-dvd-modal-backdrop,
+  .rr-dvd-modal-backdrop * {
     animation-duration: .01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: .01ms !important;
