@@ -414,13 +414,29 @@ const HERO_POSTERS = [
   { movieId: "parasite", image: "/__mockup/images/reelroom-parasite.jpg", source: "https://en.wikipedia.org/wiki/Parasite_(2019_film)" },
   { movieId: "godfather", image: "/__mockup/images/reelroom-godfather.jpg", source: "https://en.wikipedia.org/wiki/The_Godfather" },
 ] as const;
-const INTRO_POSTER_SPREAD = [
-  { x: "-31vw", y: "-15vh", rotation: "-13deg" },
-  { x: "29vw", y: "-20vh", rotation: "11deg" },
-  { x: "-26vw", y: "17vh", rotation: "8deg" },
-  { x: "25vw", y: "15vh", rotation: "-10deg" },
-  { x: "-4vw", y: "-27vh", rotation: "6deg" },
-  { x: "5vw", y: "25vh", rotation: "-5deg" },
+const INTRO_STILLS = [
+  "/intro-shots/shot-01.webp",
+  "/intro-shots/shot-02.webp",
+  "/intro-shots/shot-03.webp",
+  "/intro-shots/shot-04.webp",
+  "/intro-shots/shot-05.webp",
+  "/intro-shots/shot-06.webp",
+  "/intro-shots/shot-07.webp",
+  "/intro-shots/shot-08.webp",
+  "/intro-shots/shot-09.webp",
+  "/intro-shots/shot-10.webp",
+] as const;
+const INTRO_STILL_SPREAD = [
+  { x: "-36vw", y: "-27vh", mobileX: "-28vw", mobileY: "-21vh", rotation: "-14deg" },
+  { x: "34vw", y: "-34vh", mobileX: "27vw", mobileY: "-24vh", rotation: "12deg" },
+  { x: "-39vw", y: "4vh", mobileX: "-32vw", mobileY: "-1vh", rotation: "8deg" },
+  { x: "39vw", y: "11vh", mobileX: "32vw", mobileY: "5vh", rotation: "-11deg" },
+  { x: "-28vw", y: "34vh", mobileX: "-25vw", mobileY: "25vh", rotation: "7deg" },
+  { x: "25vw", y: "37vh", mobileX: "22vw", mobileY: "28vh", rotation: "-8deg" },
+  { x: "-4vw", y: "-39vh", mobileX: "-2vw", mobileY: "-33vh", rotation: "5deg" },
+  { x: "-16vw", y: "20vh", mobileX: "-12vw", mobileY: "17vh", rotation: "-12deg" },
+  { x: "17vw", y: "-12vh", mobileX: "14vw", mobileY: "-11vh", rotation: "13deg" },
+  { x: "7vw", y: "31vh", mobileX: "5vw", mobileY: "31vh", rotation: "-4deg" },
 ] as const;
 const POSTER_SOURCES: Record<string, string> = {
   interstellar: "https://en.wikipedia.org/wiki/Interstellar_(film)",
@@ -1762,18 +1778,18 @@ export function Reelroom() {
         <div className="rr-intro-atmosphere" aria-hidden="true"/>
         <div className="rr-intro-ring rr-intro-ring-back" aria-hidden="true"/>
         <div className="rr-intro-ring rr-intro-ring-front" aria-hidden="true"/>
-        <div className="rr-intro-poster-field" aria-hidden="true">
-          {HERO_POSTERS.map((poster, index) => {
-            const movie = movieFor(poster.movieId);
-            const spread = INTRO_POSTER_SPREAD[index];
-            return <div className="rr-intro-poster" key={poster.movieId} style={{
+        <div className="rr-intro-still-field" aria-hidden="true">
+          {INTRO_STILLS.map((image, index) => {
+            const spread = INTRO_STILL_SPREAD[index];
+            return <div className="rr-intro-still" key={image} style={{
               "--intro-x": spread.x,
               "--intro-y": spread.y,
+              "--intro-x-mobile": spread.mobileX,
+              "--intro-y-mobile": spread.mobileY,
               "--intro-rotation": spread.rotation,
               "--intro-delay": `${index * 280}ms`,
             } as CSSProperties}>
-              <img src={poster.image} alt="" fetchPriority="high"/>
-              <span>{movie.title}</span>
+              <img src={image} alt="" fetchPriority={index === 0 ? "high" : "auto"}/>
             </div>;
           })}
         </div>
