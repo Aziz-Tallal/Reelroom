@@ -59,6 +59,13 @@
 .rr-hero { min-height: max(620px, calc(100svh - 108px)); position: relative; overflow: hidden; isolation: isolate; background: #02050a; display: flex; align-items: center; }
 .rr-hero::before { content: ""; position: absolute; z-index: 0; inset: 0; background: radial-gradient(ellipse at 50% 48%, rgba(17,35,55,.44), transparent 48%), radial-gradient(ellipse at 50% 52%, rgba(0,224,84,.035), transparent 66%), linear-gradient(180deg, #020409 0%, #050911 58%, #03060b 100%); }
 .rr-hero::after { content: ""; position: absolute; z-index: 5; inset: 0; pointer-events: none; background: repeating-linear-gradient(to bottom, rgba(0,2,8,.32) 0, rgba(0,2,8,.32) 1px, transparent 1px, transparent 4px), linear-gradient(90deg, rgba(0,205,255,.035), transparent 28%, transparent 72%, rgba(255,39,94,.026)), radial-gradient(ellipse at center, transparent 38%, rgba(0,0,0,.36) 100%); }
+.rr-hero-ripple { position: absolute; z-index: 4; inset: 0; overflow: hidden; opacity: 0; pointer-events: none; background: repeating-linear-gradient(to bottom, transparent 0 2px, rgba(188,226,255,.13) 3px 4px); -webkit-mask-image: radial-gradient(circle at var(--crt-pointer-x, 50%) var(--crt-pointer-y, 50%), transparent 0 45px, rgba(0,0,0,.6) 74px, #000 130px, transparent 300px); mask-image: radial-gradient(circle at var(--crt-pointer-x, 50%) var(--crt-pointer-y, 50%), transparent 0 45px, rgba(0,0,0,.6) 74px, #000 130px, transparent 300px); mix-blend-mode: screen; }
+.rr-hero-ripple::before, .rr-hero-ripple::after { content: ""; position: absolute; top: var(--crt-pointer-y, 50%); left: var(--crt-pointer-x, 50%); width: 28px; aspect-ratio: 1; border: 1px solid rgba(190,230,255,.28); border-radius: 50%; box-shadow: 0 0 12px rgba(111,194,255,.16); opacity: 0; pointer-events: none; }
+.rr-hero.is-crt-active .rr-hero-ripple { opacity: .3; animation: rr-crt-scan-jitter .32s steps(2, end) infinite; }
+.rr-hero.is-crt-active .rr-hero-ripple::before { animation: rr-crt-ring 2.4s ease-out infinite; }
+.rr-hero.is-crt-active .rr-hero-ripple::after { animation: rr-crt-ring 2.4s 1.2s ease-out infinite; }
+@keyframes rr-crt-ring { 0% { transform: translate(-50%,-50%) scale(.35); opacity: 0; } 16% { opacity: .24; } 100% { transform: translate(-50%,-50%) scale(13); opacity: 0; } }
+@keyframes rr-crt-scan-jitter { 0%, 100% { transform: translateX(0); } 50% { transform: translateX(.35px); } }
 .rr-hero-stars { position: absolute; z-index: 1; inset: 0; overflow: hidden; pointer-events: none; }
 .rr-hero-stars canvas { display: block; width: 100%; height: 100%; }
 .rr-hero-still-stage { position: absolute; z-index: 2; inset: 0; pointer-events: none; }

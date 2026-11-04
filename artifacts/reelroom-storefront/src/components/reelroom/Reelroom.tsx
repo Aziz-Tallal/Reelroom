@@ -1349,6 +1349,12 @@ export function Reelroom() {
     const pointerY = ((event.clientY - rect.top) / rect.height - 0.5) * 2;
     const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
+    if (!reduceMotion) {
+      hero.style.setProperty("--crt-pointer-x", `${(event.clientX - rect.left).toFixed(1)}px`);
+      hero.style.setProperty("--crt-pointer-y", `${(event.clientY - rect.top).toFixed(1)}px`);
+      hero.classList.add("is-crt-active");
+    }
+
     hero.querySelectorAll<HTMLElement>(".rr-hero-still").forEach((still, index) => {
       const depth = 0.52 + (index % 4) * 0.15;
       const offsetX = reduceMotion ? 0 : -pointerX * 8 * depth;
@@ -1358,7 +1364,11 @@ export function Reelroom() {
     });
   };
   const handleHeroPointerLeave = (event: ReactPointerEvent<HTMLElement>) => {
-    event.currentTarget.querySelectorAll<HTMLElement>(".rr-hero-still").forEach((still) => {
+    const hero = event.currentTarget;
+    hero.classList.remove("is-crt-active");
+    hero.style.removeProperty("--crt-pointer-x");
+    hero.style.removeProperty("--crt-pointer-y");
+    hero.querySelectorAll<HTMLElement>(".rr-hero-still").forEach((still) => {
       still.style.setProperty("--still-shift-x", "0px");
       still.style.setProperty("--still-shift-y", "0px");
     });
@@ -1372,6 +1382,7 @@ export function Reelroom() {
           <img src={image} alt="" decoding="async" fetchPriority={index < 2 ? "high" : "auto"}/>
         </div>)}
       </div>
+      <div className="rr-hero-ripple" aria-hidden="true"/>
       <div className="rr-wrap rr-hero-inner">
         <div className="rr-hero-copy">
           <div className="rr-kicker"><span/> A curated cinema archive · Kuwait</div>
