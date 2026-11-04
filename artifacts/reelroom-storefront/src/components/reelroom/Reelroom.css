@@ -896,7 +896,16 @@
 
 .reelroom .rr-intro::after {
   z-index: 5;
-  background: radial-gradient(ellipse 80% 76% at 50% 48%, transparent 35%, rgba(3, 7, 8, .72) 100%);
+  background:
+    repeating-linear-gradient(
+      to bottom,
+      rgba(0, 2, 8, .5) 0,
+      rgba(0, 2, 8, .5) 1px,
+      transparent 1px,
+      transparent 4px
+    ),
+    linear-gradient(90deg, rgba(0, 205, 255, .045), transparent 32%, transparent 68%, rgba(255, 39, 94, .04)),
+    radial-gradient(ellipse 80% 76% at 50% 48%, transparent 35%, rgba(3, 7, 8, .72) 100%);
 }
 
 .reelroom .rr-intro.is-closing {
@@ -916,6 +925,7 @@
   opacity: .4;
   transform: translate(-50%, -50%) scale(.72);
   animation: rr-intro-atmosphere-bloom 5.6s ease-out both;
+  animation-timing-function: steps(18, end);
 }
 
 .reelroom .rr-intro-ring {
@@ -929,6 +939,7 @@
   opacity: 0;
   transform: translate(-50%, -50%) scale(.72);
   animation: rr-intro-ring-open 4.7s cubic-bezier(.2, .72, .2, 1) 80ms both;
+  animation-timing-function: steps(16, end);
 }
 
 .reelroom .rr-intro-ring-back {
@@ -969,6 +980,7 @@
   transform-style: preserve-3d;
   backface-visibility: hidden;
   animation: rr-intro-poster-flight 2.95s cubic-bezier(.18, .67, .15, 1) var(--intro-delay) both;
+  animation-timing-function: steps(14, end);
   will-change: transform, opacity;
 }
 
@@ -1017,6 +1029,7 @@
   opacity: 0;
   transform: translate(-50%, -45%) scale(.88);
   animation: rr-intro-brand-rise 1.22s cubic-bezier(.2, .72, .18, 1) 4.18s both;
+  animation-timing-function: steps(8, end);
 }
 
 .reelroom .rr-intro-brand::before {
@@ -1033,6 +1046,7 @@
   opacity: 0;
   transform: translate(-50%, -50%) scale(.65);
   animation: rr-intro-logo-halo 1.25s ease-out 4.22s both;
+  animation-timing-function: steps(10, end);
 }
 
 .reelroom .rr-intro-overline {
@@ -1135,6 +1149,7 @@
   transform: scaleX(0);
   transform-origin: left center;
   animation: rr-intro-progress 6.25s linear both;
+  animation-timing-function: steps(22, end);
 }
 
 @keyframes rr-intro-poster-flight {
