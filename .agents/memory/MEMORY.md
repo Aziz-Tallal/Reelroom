@@ -1,1 +1,0 @@
-- [Trailer screening](trailer-screening.md) — OpenRouter free-video preference, sexual-content exclusion, and video balance gating.
