@@ -2,7 +2,7 @@
   border-radius: 8px;
 }
 
-.reelroom :is(.rr-poster, .rr-hero-poster, .rr-detail-poster, .rr-ad-poster) {
+.reelroom :is(.rr-poster, .rr-hero-still, .rr-detail-poster, .rr-ad-poster) {
   border-radius: 9px;
   overflow: hidden;
 }
@@ -298,15 +298,10 @@
   }
 }
 
-.reelroom .rr-hero-poster {
-  transform: translate3d(var(--poster-shift-x, 0px), calc(var(--poster-shift-y, 0px) + var(--poster-scroll-y, 0px)), 0) rotate(var(--poster-tilt));
-  transition: transform .22s cubic-bezier(.2, .72, .2, 1), box-shadow .28s ease;
+.reelroom .rr-hero-still {
+  transform: translate3d(var(--still-shift-x, 0px), calc(var(--still-shift-y, 0px) + var(--still-scroll-y, 0px)), 0) rotate(var(--still-tilt));
+  transition: transform .22s cubic-bezier(.2, .72, .2, 1);
   will-change: transform;
-}
-
-.reelroom .rr-hero-poster:hover,
-.reelroom .rr-hero-poster:focus-visible {
-  transform: translate3d(var(--poster-shift-x, 0px), calc(var(--poster-shift-y, 0px) + var(--poster-scroll-y, 0px) - 8px), 0) rotate(var(--poster-tilt)) scale(1.05);
 }
 
 .reelroom .rr-home-collection {
@@ -475,9 +470,14 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .reelroom .rr-hero-poster {
+  .reelroom .rr-hero-still {
+    animation: none;
     transition: none;
     will-change: auto;
+  }
+
+  .reelroom .rr-hero-inner {
+    animation: none;
   }
 
   .reelroom .rr-shelf-track {
@@ -852,9 +852,7 @@
 .reelroom .rr-movie-card:hover .rr-poster:not(.is-preview-expanded),
 .reelroom .rr-movie-card:focus-within .rr-poster:not(.is-preview-expanded),
 .reelroom .rr-poster:hover:not(.is-preview-expanded),
-.reelroom .rr-poster:focus-visible:not(.is-preview-expanded),
-.reelroom .rr-hero-poster:hover,
-.reelroom .rr-hero-poster:focus-visible {
+.reelroom .rr-poster:focus-visible:not(.is-preview-expanded) {
   box-shadow: 0 0 0 1.5px rgba(0, 224, 84, .48), 0 0 24px rgba(0, 224, 84, .3), 0 0 42px rgba(0, 224, 84, .16);
 }
 

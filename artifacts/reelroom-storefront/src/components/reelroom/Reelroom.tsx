@@ -406,15 +406,7 @@ const isAnimatedFilm = (movie: Movie) => movie.isAnimated === true || movie.genr
 const CRITERION_SELECTION_TITLES = new Set(CRITERION_FILMS.map((film) => normalizeFilmTitle(film.title)));
 const CRITERION_SELECTION_MOVIES = MOVIES.filter((movie) => CRITERION_SELECTION_TITLES.has(normalizeFilmTitle(movie.title)));
 
-const HERO_POSTERS = [
-  { movieId: "interstellar", image: "/__mockup/images/reelroom-interstellar.jpg", source: "https://en.wikipedia.org/wiki/Interstellar_(film)" },
-  { movieId: "dune-part-two", image: "/__mockup/images/reelroom-dune-part-two.jpg", source: "https://en.wikipedia.org/wiki/Dune:_Part_Two" },
-  { movieId: "blade-runner-2049", image: "/__mockup/images/reelroom-blade-runner-2049.jpg", source: "https://en.wikipedia.org/wiki/Blade_Runner_2049" },
-  { movieId: "oppenheimer", image: "/__mockup/images/reelroom-oppenheimer.jpg", source: "https://en.wikipedia.org/wiki/Oppenheimer_(film)" },
-  { movieId: "parasite", image: "/__mockup/images/reelroom-parasite.jpg", source: "https://en.wikipedia.org/wiki/Parasite_(2019_film)" },
-  { movieId: "godfather", image: "/__mockup/images/reelroom-godfather.jpg", source: "https://en.wikipedia.org/wiki/The_Godfather" },
-] as const;
-const INTRO_STILLS = [
+const FILM_STILLS = [
   "/intro-shots/shot-01.webp",
   "/intro-shots/shot-02.webp",
   "/intro-shots/shot-03.webp",
@@ -480,7 +472,7 @@ const saveStored = (key: string, value: unknown) => {
   try { localStorage.setItem(key, JSON.stringify(value)); } catch { /* storage can be unavailable in private browsing */ }
 };
 
-function GravityField() {
+function SparklesField() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
@@ -493,16 +485,11 @@ function GravityField() {
       x: number; y: number; vx: number; vy: number; driftX: number; driftY: number;
       size: number; depth: number; phase: number; tint: number;
     };
-    type GeometryMark = {
-      x: number; y: number; radius: number; depth: number; angle: number;
-      sides: number; tint: number; ring: boolean;
-    };
     const motionPreference = window.matchMedia("(prefers-reduced-motion: reduce)");
     let reduceMotion = motionPreference.matches;
     let width = 0;
     let height = 0;
     let stars: Star[] = [];
-    let geometryMarks: GeometryMark[] = [];
     let frame = 0;
     let intersecting = true;
     let pointerActive = false;
@@ -542,75 +529,19 @@ function GravityField() {
         }
       }
 
-      const linkDistance = 132;
-      for (let i = 0; i < stars.length; i++) {
-        const a = stars[i];
-        for (let j = i + 1; j < stars.length; j++) {
-          const b = stars[j];
-          const distance = Math.hypot(a.x - b.x, a.y - b.y);
-          if (distance < linkDistance) {
-            context.strokeStyle = `rgba(177, 218, 200, ${(1 - distance / linkDistance) * 0.11})`;
-            context.lineWidth = 0.55;
-            context.beginPath();
-            context.moveTo(a.x, a.y);
-            context.lineTo(b.x, b.y);
-            context.stroke();
-          }
-        }
-      }
-
-      for (const mark of geometryMarks) {
-        const dx = mark.x - pointerX;
-        const dy = mark.y - pointerY;
-        const distance = Math.max(1, Math.hypot(dx, dy));
-        const proximity = pointerActive ? Math.max(0, 1 - distance / 360) : 0;
-        const repel = !reduceMotion ? proximity * mark.depth * 18 : 0;
-        const x = mark.x + (dx / distance) * repel;
-        const y = mark.y + (dy / distance) * repel;
-        const radius = mark.radius * (1 + (!reduceMotion ? proximity * 0.08 : 0));
-        const rgb = mark.tint < 0.48 ? "69, 155, 229" : "0, 224, 84";
-        const opacity = 0.11 + mark.depth * 0.12 + proximity * 0.13;
-
-        context.save();
-        context.translate(x, y);
-        context.rotate(mark.angle + (animate ? time * 0.000035 * mark.depth : 0));
-        context.strokeStyle = `rgba(${rgb}, ${opacity})`;
-        context.lineWidth = mark.depth > 0.72 ? 0.9 : 0.65;
-        context.beginPath();
-        for (let side = 0; side < mark.sides; side++) {
-          const angle = (Math.PI * 2 * side) / mark.sides - Math.PI / 2;
-          const pointX = Math.cos(angle) * radius;
-          const pointY = Math.sin(angle) * radius;
-          if (side === 0) context.moveTo(pointX, pointY);
-          else context.lineTo(pointX, pointY);
-        }
-        context.closePath();
-        context.stroke();
-        if (mark.ring) {
-          context.beginPath();
-          context.arc(0, 0, radius * 0.52, 0, Math.PI * 2);
-          context.strokeStyle = `rgba(${rgb}, ${opacity * 0.72})`;
-          context.stroke();
-        } else {
-          context.beginPath();
-          context.moveTo(-radius * 0.28, 0);
-          context.lineTo(radius * 0.28, 0);
-          context.moveTo(0, -radius * 0.28);
-          context.lineTo(0, radius * 0.28);
-          context.strokeStyle = `rgba(${rgb}, ${opacity * 0.58})`;
-          context.stroke();
-        }
-        context.restore();
-      }
-
       for (const star of stars) {
-        const shimmer = reduceMotion ? 0.78 : 0.55 + Math.sin(time * 0.0007 + star.phase) * 0.25;
-        const opacity = Math.min(0.88, shimmer * (0.34 + star.depth * 0.52));
-        const rgb = star.tint < 0.13 ? "0, 224, 84" : star.tint < 0.24 ? "69, 155, 229" : star.tint < 0.34 ? "230, 190, 137" : "225, 234, 232";
+        const shimmer = reduceMotion ? 0.7 : 0.38 + (Math.sin(time * 0.0011 + star.phase) + 1) * 0.31;
+        const opacity = Math.min(0.96, shimmer * (0.58 + star.depth * 0.42));
+        const rgb = star.tint < 0.1 ? "207, 228, 255" : "246, 249, 255";
         context.fillStyle = `rgba(${rgb}, ${opacity})`;
+        if (star.depth > 0.9) {
+          context.shadowColor = "rgba(208, 230, 255, .6)";
+          context.shadowBlur = 9;
+        }
         context.beginPath();
         context.arc(star.x, star.y, star.size * (0.6 + star.depth * 0.8), 0, Math.PI * 2);
         context.fill();
+        context.shadowBlur = 0;
       }
     };
 
@@ -627,7 +558,7 @@ function GravityField() {
       context.setTransform(dpr, 0, 0, dpr, 0, 0);
 
       if (!stars.length) {
-        const count = width < 720 ? 96 : 176;
+        const count = width < 720 ? 112 : 210;
         stars = Array.from({ length: count }, () => {
           const depth = random() ** 1.5;
           const drift = random() * Math.PI * 2;
@@ -637,25 +568,10 @@ function GravityField() {
             size: 0.45 + random() * 0.65, depth, phase: random() * Math.PI * 2, tint: random(),
           };
         });
-        const geometryCount = width < 720 ? 12 : 26;
-        geometryMarks = Array.from({ length: geometryCount }, () => ({
-          x: width * (0.43 + random() * 0.57),
-          y: random() * height,
-          radius: 9 + random() * 26,
-          depth: 0.3 + random() * 0.7,
-          angle: random() * Math.PI,
-          sides: 3 + Math.floor(random() * 4),
-          tint: random(),
-          ring: random() > 0.58,
-        }));
       } else {
         for (const star of stars) {
           star.x *= width / oldWidth;
           star.y *= height / oldHeight;
-        }
-        for (const mark of geometryMarks) {
-          mark.x *= width / oldWidth;
-          mark.y *= height / oldHeight;
         }
       }
       paint(performance.now(), false);
@@ -1171,7 +1087,7 @@ export function Reelroom() {
     const hero = document.querySelector<HTMLElement>(".rr-hero");
     if (!hero) return;
 
-    const posters = Array.from(hero.querySelectorAll<HTMLElement>(".rr-hero-poster"));
+    const stills = Array.from(hero.querySelectorAll<HTMLElement>(".rr-hero-still"));
     const motionPreference = window.matchMedia("(prefers-reduced-motion: reduce)");
     let animationFrame = 0;
 
@@ -1179,13 +1095,13 @@ export function Reelroom() {
       animationFrame = 0;
       const scrollDistance = Math.max(0, window.scrollY);
 
-      posters.forEach((poster, index) => {
+      stills.forEach((still, index) => {
         const direction = index % 2 === 0 ? -1 : 1;
         const strength = 0.014 + (index % 3) * 0.003;
         const offset = motionPreference.matches
           ? 0
           : Math.max(-12, Math.min(12, scrollDistance * strength * direction));
-        poster.style.setProperty("--poster-scroll-y", `${offset.toFixed(2)}px`);
+        still.style.setProperty("--still-scroll-y", `${offset.toFixed(2)}px`);
       });
     };
 
@@ -1202,7 +1118,7 @@ export function Reelroom() {
       window.removeEventListener("scroll", scheduleUpdate);
       motionPreference.removeEventListener("change", handleMotionChange);
       if (animationFrame) window.cancelAnimationFrame(animationFrame);
-      posters.forEach((poster) => poster.style.removeProperty("--poster-scroll-y"));
+      stills.forEach((still) => still.style.removeProperty("--still-scroll-y"));
     };
   }, [view]);
   useEffect(() => {
@@ -1433,36 +1349,28 @@ export function Reelroom() {
     const pointerY = ((event.clientY - rect.top) / rect.height - 0.5) * 2;
     const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-    hero.querySelectorAll<HTMLElement>(".rr-hero-poster").forEach((poster, index) => {
+    hero.querySelectorAll<HTMLElement>(".rr-hero-still").forEach((still, index) => {
       const depth = 0.52 + (index % 4) * 0.15;
       const offsetX = reduceMotion ? 0 : -pointerX * 8 * depth;
       const offsetY = reduceMotion ? 0 : -pointerY * 6 * depth;
-      poster.style.setProperty("--poster-shift-x", `${offsetX.toFixed(2)}px`);
-      poster.style.setProperty("--poster-shift-y", `${offsetY.toFixed(2)}px`);
+      still.style.setProperty("--still-shift-x", `${offsetX.toFixed(2)}px`);
+      still.style.setProperty("--still-shift-y", `${offsetY.toFixed(2)}px`);
     });
   };
   const handleHeroPointerLeave = (event: ReactPointerEvent<HTMLElement>) => {
-    event.currentTarget.querySelectorAll<HTMLElement>(".rr-hero-poster").forEach((poster) => {
-      poster.style.setProperty("--poster-shift-x", "0px");
-      poster.style.setProperty("--poster-shift-y", "0px");
+    event.currentTarget.querySelectorAll<HTMLElement>(".rr-hero-still").forEach((still) => {
+      still.style.setProperty("--still-shift-x", "0px");
+      still.style.setProperty("--still-shift-y", "0px");
     });
   };
 
   const renderHome = () => <main>
     <section className="rr-hero" onPointerMove={handleHeroPointerMove} onPointerLeave={handleHeroPointerLeave}>
-      <GravityField />
-      <div className="rr-hero-poster-stage" aria-label="Featured film posters">
-        {HERO_POSTERS.map((poster, index) => {
-          const movie = movieFor(poster.movieId);
-          return <button type="button" key={poster.movieId} className={`rr-hero-poster rr-hero-poster-${index + 1}`} aria-label={`View ${movie.title} details`} onClick={() => openDetails(movie)}>
-            <img src={poster.image} alt={`${movie.title} theatrical poster`} loading={index < 2 ? "eager" : "lazy"}/>
-            <span className="rr-hero-poster-title">{movie.title}</span>
-          </button>;
-        })}
-        <div className="rr-hero-poster-credit">
-          <span>Poster art for identification · sources: </span>
-          {HERO_POSTERS.map((poster, index) => <span key={poster.movieId}>{index > 0 && " · "}<a href={poster.source} target="_blank" rel="noopener noreferrer">{movieFor(poster.movieId).title}</a></span>)}
-        </div>
+      <SparklesField />
+      <div className="rr-hero-still-stage" aria-hidden="true">
+        {FILM_STILLS.map((image, index) => <div key={image} className={`rr-hero-still rr-hero-still-${index + 1}`}>
+          <img src={image} alt="" decoding="async" fetchPriority={index < 2 ? "high" : "auto"}/>
+        </div>)}
       </div>
       <div className="rr-wrap rr-hero-inner">
         <div className="rr-hero-copy">
@@ -1779,7 +1687,7 @@ export function Reelroom() {
         <div className="rr-intro-ring rr-intro-ring-back" aria-hidden="true"/>
         <div className="rr-intro-ring rr-intro-ring-front" aria-hidden="true"/>
         <div className="rr-intro-still-field" aria-hidden="true">
-          {INTRO_STILLS.map((image, index) => {
+          {FILM_STILLS.map((image, index) => {
             const spread = INTRO_STILL_SPREAD[index];
             return <div className="rr-intro-still" key={image} style={{
               "--intro-x": spread.x,
