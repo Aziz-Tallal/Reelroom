@@ -5,6 +5,7 @@ import {
   ShoppingBag, ShoppingCart, Trash2, X,
 } from "lucide-react";
 import { LibraryShelf, type LibraryEdition, type LibraryShelfFilm } from "./LibraryShelf";
+import { TrailerScreeningProvider, TrailerScreeningPanel, ScreenedTrailerPlayer, useScreenedTrailer } from "./TrailerScreening";
 import "./_group.css";
 import "./Reelroom.css";
 
@@ -749,6 +750,7 @@ function Poster({
   const isExpanded = preview.activeId === movie.id;
   const isTouchSelected = preview.selectedId === movie.id;
   const approvedTeaser = movie.teaser?.approvalStatus === "approved" && movie.teaser.reviewed ? movie.teaser : null;
+  const screenedTrailer = useScreenedTrailer(movie.title, movie.year);
   const posterSource = movie.posterPath ?? `/__mockup/images/reelroom-${movie.id}.${movie.posterExt ?? "jpg"}`;
   const libraryActionLabel = libraryLocked
     ? "Already in My Library"
@@ -838,7 +840,7 @@ function Poster({
       }
     }}
     style={{ "--poster-bg": `linear-gradient(148deg, ${movie.palette[0]}, #11181c 78%)`, "--poster-glow": movie.palette[1] } as CSSProperties}
-    aria-label={`View ${movie.title} details. Hover for ten seconds or focus to open a safe preview.`}
+    aria-label={`View ${movie.title} details. Hover for five seconds or focus to open a poster or text-screened trailer preview.`}
     aria-expanded={isExpanded}
   >
     <img className="rr-poster-image" src={posterSource} alt={`${movie.title} theatrical poster`} loading="lazy" onError={(event) => { event.currentTarget.classList.add("poster-error"); if (movie.isAnimated) event.currentTarget.nextElementSibling?.classList.add("poster-fallback-visible"); }}/>
@@ -870,13 +872,17 @@ function Poster({
       <section className={`rr-preview-dialog ${closing ? "is-closing" : ""}`} ref={dialogRef} role="dialog" aria-modal="true" aria-label={`${movie.title} cinematic preview`} onClick={(event) => event.stopPropagation()}>
         <button className="rr-preview-close" aria-label="Close preview" onClick={closePreview}><X size={17}/></button>
         <div className="rr-preview-visual">
-          {approvedTeaser && !videoUnavailable
+          {screenedTrailer
+            ? <ScreenedTrailerPlayer item={screenedTrailer} autoPlay />
+            : approvedTeaser && !videoUnavailable
             ? <video ref={videoRef} className="rr-preview-video" src={approvedTeaser.src} poster={posterSource} autoPlay muted={!soundEnabled || !approvedTeaser.hasAudio} loop playsInline preload="none" onError={() => setVideoUnavailable(true)}>
                 {approvedTeaser.captionsUrl && <track kind="captions" src={approvedTeaser.captionsUrl} srcLang="en" label="English captions" default/>}
               </video>
             : <img className="rr-preview-poster-image" src={posterSource} alt={`${movie.title} poster artwork`} onError={(event) => event.currentTarget.classList.add("poster-error")}/>}
           <div className="rr-preview-film-wash"/>
-          {!approvedTeaser || videoUnavailable
+          {screenedTrailer
+            ? <span className="rr-preview-safety-note"><span/> No textual flags found · synopsis only</span>
+            : !approvedTeaser || videoUnavailable
             ? <span className="rr-preview-safety-note"><span/> Poster-led preview · teaser not enabled</span>
             : <span className="rr-preview-safety-note"><span/> Curated teaser · muted</span>}
         </div>
@@ -901,7 +907,9 @@ function Poster({
             </button>
             {approvedTeaser?.hasAudio && <button className="rr-preview-sound" aria-label={soundEnabled ? "Mute teaser" : "Enable teaser sound"} onClick={() => setSoundEnabled((enabled) => !enabled)}>{soundEnabled ? "Sound on" : "Sound off"}</button>}
           </div>
-          {!approvedTeaser && <p className="rr-preview-footnote">No manually reviewed teaser is available for this film yet. We’ll keep the poster in view rather than autoplay an unapproved clip.</p>}
+          {screenedTrailer
+            ? <p className="rr-preview-footnote">Movie synopsis screened for nudity and sexual activity. Trailer video has not been verified.</p>
+            : !approvedTeaser && <p className="rr-preview-footnote">No text-screened trailer is available for this film yet. Unreviewed, flagged, and uncertain trailers stay hidden.</p>}
         </div>
       </section>
     </div>}
@@ -1706,6 +1714,7 @@ export function Reelroom() {
     <div className="rr-page-head"><span className="rr-eyebrow">A note from the projection booth</span><h1>One film. Every way to watch it.</h1><p>REELROOM is a curated cinema archive for people who care about what they watch—and how they keep it.</p></div>
     <section className="rr-section"><div className="rr-story"><div><span className="rr-eyebrow">The idea</span><h2>Less hunting.<br/>More settling in.</h2><p>Finding a favorite film should feel like browsing a thoughtfully kept collection, not opening another endless storefront. REELROOM brings disc formats and digital platform options into one simple, considered view.</p><p>Choose a physical edition for the shelf or a digital platform preference for the evening. The experience is designed around the film, then gets out of the way.</p><button className="rr-button" style={{ marginTop: 19 }} onClick={() => navigate("browse")}>Explore the archive <ArrowRight size={14}/></button></div><div className="rr-brand-spec"><span className="rr-eyebrow">Brand & design</span><div className="rr-spec-row"><strong>Personality</strong><span>Cinematic · Curated · Effortless</span></div><div className="rr-spec-row"><strong>Mark</strong><span>An original R held inside a restrained film frame.</span></div><div className="rr-spec-row"><strong>Palette</strong><span>Cinema Black anchors the room; Reel Green marks the essentials, Projection Blue signals digital choices and focus, and Film Orange punctuates selected highlights.</span></div><div className="rr-spec-row"><strong>Type</strong><span>Space Grotesk for confident film titles; Inter for readable, quiet utility.</span></div><div className="rr-spec-row"><strong>Principle</strong><span>Poster-first discovery. No clutter between you and the next film.</span></div></div></div></section>
     <section className="rr-section compact"><div className="rr-promo"><div><span className="rr-eyebrow">How the demo works</span><h2>Availability and prices are examples—not offers.</h2></div><button className="rr-button secondary" onClick={() => navigate("contact")}>Ask us a question <ArrowRight size={14}/></button></div></section>
+    <TrailerScreeningPanel />
   </main>;
 
   const renderContact = () => <main className="rr-wrap">
@@ -1750,7 +1759,7 @@ export function Reelroom() {
     : view === "contact" ? renderContact()
     : renderAd();
 
-  return <PosterPreviewContext.Provider value={{ activeId: activePreviewId, setActiveId: setActivePreviewId, selectedId: selectedPreviewId, setSelectedId: setSelectedPreviewId }}>
+  return <TrailerScreeningProvider><PosterPreviewContext.Provider value={{ activeId: activePreviewId, setActiveId: setActivePreviewId, selectedId: selectedPreviewId, setSelectedId: setSelectedPreviewId }}>
     <div className={`reelroom ${activePreviewId ? "rr-has-active-preview" : ""}`} data-preview-active={activePreviewId ? "true" : "false"}>
       <div className="rr-site-shell" inert={introVisible} aria-hidden={introVisible}>
         {renderNav()}
@@ -1791,5 +1800,5 @@ export function Reelroom() {
         <div className="rr-intro-progress" aria-hidden="true"><span/></div>
       </div>}
     </div>
-  </PosterPreviewContext.Provider>;
+  </PosterPreviewContext.Provider></TrailerScreeningProvider>;
 }

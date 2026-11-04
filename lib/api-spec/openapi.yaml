@@ -11,6 +11,38 @@ tags:
   - name: health
     description: Health operations
 paths:
+  /trailers:
+    get:
+      operationId: listTrailerReviews
+      tags: [trailers]
+      summary: Cinemeta trailers and their text-screening decisions
+      responses:
+        "200":
+          description: Current catalog with cached text reviews
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TrailerReviewCatalog"
+        "503":
+          description: Catalog or review storage unavailable
+  /trailers/review:
+    post:
+      operationId: reviewTrailerBatch
+      tags: [trailers]
+      summary: Screen the next ten unreviewed movie synopses using the free text model
+      responses:
+        "200":
+          description: Updated catalog after text screening
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TrailerReviewCatalog"
+        "429":
+          description: Review queue is busy or the free model is rate limited
+        "502":
+          description: Text review failed and no trailers were enabled
+        "503":
+          description: Screening configuration or catalog unavailable
   /healthz:
     get:
       operationId: healthCheck
@@ -26,6 +58,34 @@ paths:
                 $ref: "#/components/schemas/HealthStatus"
 components:
   schemas:
+    TrailerReviewItem:
+      type: object
+      required: [id, title, year, description, youtubeIds, status, reason, reviewedAt]
+      properties:
+        id: { type: string }
+        title: { type: string }
+        year: { type: integer }
+        description: { type: string }
+        youtubeIds:
+          type: array
+          items: { type: string }
+        status:
+          type: string
+          enum: [pending, no_flags, flagged, unknown]
+        reason: { type: string }
+        reviewedAt: { type: [string, "null"] }
+    TrailerReviewCatalog:
+      type: object
+      required: [model, sourceUrl, items, pendingCount, trailerCount]
+      properties:
+        model: { type: string }
+        sourceUrl: { type: string }
+        pendingCount: { type: integer }
+        trailerCount: { type: integer }
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/TrailerReviewItem"
     HealthStatus:
       type: object
       properties:

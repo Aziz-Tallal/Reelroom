@@ -4,9 +4,9 @@ description: User requirements for trailer moderation and an OpenRouter video-in
 ---
 
 ## Screening requirement
-The user changed the requested screening from trailer video analysis to analysis of textual trailer context for nudity and sexual activity. They want to use their own OpenRouter key with a free model.
+The user changed the requested screening from trailer video analysis to analysis of textual context for nudity and sexual activity. They accepted Cinemeta movie synopses as the available text source after being told these are not trailer-specific descriptions. They want their own OpenRouter key with a free model.
 
-**Why:** The user explicitly requested text-context screening instead of video scanning and retained the free-model requirement.
+**Why:** The user explicitly requested text-context screening instead of video scanning, retained the free-model requirement, and agreed to proceed after the synopsis-only limitation was explained.
 
 **How to apply:** Distinguish text screening from visual review. Report no textual flags rather than certifying a video as safe. Missing descriptions and movie synopses do not establish what appears in a particular trailer.
 
