@@ -2,7 +2,7 @@
   border-radius: 8px;
 }
 
-.reelroom :is(.rr-poster, .rr-hero-still, .rr-detail-poster, .rr-ad-poster) {
+.reelroom :is(.rr-poster, .rr-detail-poster, .rr-ad-poster) {
   border-radius: 9px;
   overflow: hidden;
 }
