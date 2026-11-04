@@ -4,11 +4,11 @@ description: User requirements for trailer moderation and an OpenRouter video-in
 ---
 
 ## Screening requirement
-Trailers sourced from Cinemeta must be screened for nudity and sexual scenes before being added. The user chose their own OpenRouter key and a free video-capable model instead of a paid Qwen route.
+The user changed the requested screening from trailer video analysis to analysis of textual trailer context for nudity and sexual activity. They want to use their own OpenRouter key with a free model.
 
-**Why:** The user requested this content restriction and selected the free-model option.
+**Why:** The user explicitly requested text-context screening instead of video scanning and retained the free-model requirement.
 
-**How to apply:** Verify actual video access before scanning a batch. Do not approve trailers based only on metadata, prior model knowledge, failed requests, or uncertain analysis.
+**How to apply:** Distinguish text screening from visual review. Report no textual flags rather than certifying a video as safe. Missing descriptions and movie synopses do not establish what appears in a particular trailer.
 
 ## OpenRouter video balance gate
 OpenRouter can reject video requests with HTTP 402 requiring at least $1.00 in credit balance even when the selected model has a `:free` route.
