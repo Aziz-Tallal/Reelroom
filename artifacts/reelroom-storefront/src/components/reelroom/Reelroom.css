@@ -1028,7 +1028,7 @@
   text-align: center;
   opacity: 0;
   transform: translate(-50%, -45%) scale(.88);
-  animation: rr-intro-brand-rise 1.22s cubic-bezier(.2, .72, .18, 1) 4.18s both;
+  animation: rr-intro-brand-rise 1.5s cubic-bezier(.2, .72, .18, 1) 4.18s both;
   animation-timing-function: steps(16, end);
 }
 
@@ -1166,7 +1166,7 @@
   background: linear-gradient(90deg, #00e054, #8bffae);
   transform: scaleX(0);
   transform-origin: left center;
-  animation: rr-intro-progress 6.25s linear both;
+  animation: rr-intro-progress 7.6s linear both;
   animation-timing-function: steps(36, end);
 }
 
@@ -1195,7 +1195,7 @@
 
 @keyframes rr-intro-brand-rise {
   from { opacity: 0; transform: translate(-50%, -42%) scale(.82); }
-  to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  to { opacity: 1; transform: translate(-50%, -50%) scale(1.12); }
 }
 
 @keyframes rr-intro-logo-halo {

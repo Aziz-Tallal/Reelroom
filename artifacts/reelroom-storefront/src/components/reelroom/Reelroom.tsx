@@ -1143,8 +1143,8 @@ export function Reelroom() {
       setIntroVisible(false);
       return;
     }
-    introCloseTimerRef.current = window.setTimeout(() => setIntroClosing(true), 5700);
-    introHideTimerRef.current = window.setTimeout(() => setIntroVisible(false), 6550);
+    introCloseTimerRef.current = window.setTimeout(() => setIntroClosing(true), 7100);
+    introHideTimerRef.current = window.setTimeout(() => setIntroVisible(false), 7950);
     return () => {
       if (introCloseTimerRef.current !== null) window.clearTimeout(introCloseTimerRef.current);
       if (introHideTimerRef.current !== null) window.clearTimeout(introHideTimerRef.current);
