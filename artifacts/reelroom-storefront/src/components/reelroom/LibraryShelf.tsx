@@ -1,7 +1,12 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
 import { ArrowDownRight, Clapperboard, Disc3, MonitorPlay, X } from "lucide-react";
-import { fetchCinemetaMovie, type CinemetaMovie } from "../../lib/cinemeta";
+import {
+  CINEMETA_FIELD_MESSAGES,
+  fetchCinemetaMovie,
+  getCinemetaErrorMessage,
+  type CinemetaMovie,
+} from "../../lib/cinemeta";
 import { MovieMetadata, type CinemetaStatus } from "./MovieMetadata";
 import "./LibraryShelf.css";
 
@@ -89,6 +94,7 @@ export function LibraryShelf({ films, onBrowse }: LibraryShelfProps) {
     movieId: string;
     status: CinemetaStatus;
     metadata: CinemetaMovie | null;
+    errorMessage?: string;
   }>({ movieId: "", status: "idle", metadata: null });
   const [cinemetaRetry, setCinemetaRetry] = useState(0);
   const [shelfCapacity, setShelfCapacity] = useState(14);
@@ -130,13 +136,20 @@ export function LibraryShelf({ films, onBrowse }: LibraryShelfProps) {
   const selectedCinemetaStatus: CinemetaStatus = selectedMovie
     ? cinemetaLookup.movieId === selectedMovie.id ? cinemetaLookup.status : "loading"
     : "idle";
+  const selectedCinemetaErrorMessage = selectedMovie && cinemetaLookup.movieId === selectedMovie.id
+    ? cinemetaLookup.errorMessage
+    : undefined;
   const selectedGenre = selectedCinemetaMeta?.genres.length
     ? selectedCinemetaMeta.genres.join(" · ")
     : selectedMovie?.genre ?? "";
-  const selectedDirector = selectedCinemetaMeta?.director.length
-    ? selectedCinemetaMeta.director.join(", ")
+  const selectedDirector = selectedCinemetaMeta
+    ? selectedCinemetaMeta.director.length
+      ? selectedCinemetaMeta.director.join(", ")
+      : CINEMETA_FIELD_MESSAGES.director
     : selectedMovie?.director ?? "";
-  const selectedSynopsis = selectedCinemetaMeta?.description || selectedMovie?.synopsis || "";
+  const selectedSynopsis = selectedCinemetaMeta
+    ? selectedCinemetaMeta.description ?? CINEMETA_FIELD_MESSAGES.synopsis
+    : selectedMovie?.synopsis ?? "";
   const shelves = Array.from({ length: Math.ceil(visibleFilms.length / shelfCapacity) }, (_, index) => (
     visibleFilms.slice(index * shelfCapacity, (index + 1) * shelfCapacity)
   ));
@@ -155,8 +168,13 @@ export function LibraryShelf({ films, onBrowse }: LibraryShelfProps) {
           metadata,
         });
       })
-      .catch(() => {
-        if (active) setCinemetaLookup({ movieId: id, status: "error", metadata: null });
+      .catch((error: unknown) => {
+        if (active) setCinemetaLookup({
+          movieId: id,
+          status: "error",
+          metadata: null,
+          errorMessage: getCinemetaErrorMessage(error),
+        });
       });
     return () => { active = false; };
   }, [selectedMovie?.id, selectedMovie?.title, selectedMovie?.year, cinemetaRetry]);
@@ -422,6 +440,7 @@ export function LibraryShelf({ films, onBrowse }: LibraryShelfProps) {
                 <MovieMetadata
                   status={selectedCinemetaStatus}
                   metadata={selectedCinemetaMeta}
+                  errorMessage={selectedCinemetaErrorMessage}
                   onRetry={() => setCinemetaRetry((current) => current + 1)}
                 />
                 <div className="rr-dvd-editions">

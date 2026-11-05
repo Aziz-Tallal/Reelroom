@@ -4,7 +4,12 @@ import {
   Clapperboard, Film, Heart, Menu, Minus, Play, Plus, RotateCcw, Search,
   ShoppingBag, ShoppingCart, Trash2, X,
 } from "lucide-react";
-import { fetchCinemetaMovie, type CinemetaMovie } from "../../lib/cinemeta";
+import {
+  CINEMETA_FIELD_MESSAGES,
+  fetchCinemetaMovie,
+  getCinemetaErrorMessage,
+  type CinemetaMovie,
+} from "../../lib/cinemeta";
 import { LibraryShelf, type LibraryEdition, type LibraryShelfFilm } from "./LibraryShelf";
 import { MovieMetadata, type CinemetaStatus } from "./MovieMetadata";
 import "./_group.css";
@@ -16,7 +21,12 @@ type Movie = {
   posterExt?: string; posterPath?: string; sourcePage?: string; isCriterion?: boolean; isAnimated?: boolean; artVariation?: number;
   teaser?: { src: string; approvalStatus: "pending" | "approved"; reviewed: boolean; captionsUrl?: string; hasAudio?: boolean };
 };
-type CinemetaLookup = { movieId: string; status: CinemetaStatus; metadata: CinemetaMovie | null };
+type CinemetaLookup = {
+  movieId: string;
+  status: CinemetaStatus;
+  metadata: CinemetaMovie | null;
+  errorMessage?: string;
+};
 type PosterPreviewContextValue = {
   activeId: string | null;
   setActiveId: (id: string | null) => void;
@@ -1087,8 +1097,13 @@ export function Reelroom() {
           metadata,
         });
       })
-      .catch(() => {
-        if (active) setCinemetaLookup({ movieId: selectedMovie.id, status: "error", metadata: null });
+      .catch((error: unknown) => {
+        if (active) setCinemetaLookup({
+          movieId: selectedMovie.id,
+          status: "error",
+          metadata: null,
+          errorMessage: getCinemetaErrorMessage(error),
+        });
       });
     return () => { active = false; };
   }, [view, selectedMovie.id, selectedMovie.title, selectedMovie.year, cinemetaRetry]);
@@ -1512,11 +1527,19 @@ export function Reelroom() {
     const detailGenres = cinemetaMeta?.genres.length
       ? cinemetaMeta.genres.join(" · ")
       : selectedMovie.genres?.join(" · ") ?? selectedMovie.genre;
-    const detailRuntime = cinemetaMeta?.runtime?.match(/\d+/)?.[0] ?? String(selectedMovie.runtime);
-    const detailDirector = cinemetaMeta?.director.length
-      ? cinemetaMeta.director.join(", ")
+    const runtimeMinutes = cinemetaMeta?.runtime?.match(/\d+/)?.[0];
+    const detailRuntime = cinemetaMeta
+      ? runtimeMinutes ? `${runtimeMinutes} min` : CINEMETA_FIELD_MESSAGES.runtime
+      : `${selectedMovie.runtime} min`;
+    const detailDirector = cinemetaMeta
+      ? cinemetaMeta.director.length ? cinemetaMeta.director.join(", ") : CINEMETA_FIELD_MESSAGES.director
       : selectedMovie.director;
-    const detailSynopsis = cinemetaMeta?.description || selectedMovie.synopsis;
+    const detailSynopsis = cinemetaMeta
+      ? cinemetaMeta.description ?? CINEMETA_FIELD_MESSAGES.synopsis
+      : selectedMovie.synopsis;
+    const cinemetaErrorMessage = cinemetaLookup.movieId === selectedMovie.id
+      ? cinemetaLookup.errorMessage
+      : undefined;
     const options = experience === "Physical" ? ["DVD", "Blu-ray", ...(FOUR_K_DEMO_TITLES.has(selectedMovie.id) ? ["4K Ultra HD"] : [])] : selectedMovie.platforms;
     const setOption = (option: string) => { setSelectedOption(option); setAdded(false); };
     const priceText = typeof itemPrice === "number" ? itemPrice : Number(itemPrice);
@@ -1538,12 +1561,13 @@ export function Reelroom() {
           <span className="rr-eyebrow">The REELROOM archive</span><h1>{selectedMovie.title}</h1>
           <div className="rr-meta-line">{selectedMovie.isCriterion && !cinemetaMeta
             ? <><span>Criterion Collection</span><span>Physical &amp; digital demo options</span></>
-            : <><span>{cinemetaMeta?.year ?? selectedMovie.year}</span><span>{detailGenres}</span><span>{detailRuntime} min</span></>}</div>
+            : <><span>{cinemetaMeta?.year ?? selectedMovie.year}</span><span>{detailGenres}</span><span>{detailRuntime}</span></>}</div>
           <p className="rr-synopsis">{detailSynopsis}</p>
           <p className="rr-detail-director">{selectedMovie.isCriterion && !cinemetaMeta ? "CURATED COLLECTION" : "DIRECTED BY"} <strong>{detailDirector}</strong></p>
           <MovieMetadata
             status={cinemetaStatus}
             metadata={cinemetaMeta}
+            errorMessage={cinemetaErrorMessage}
             onRetry={() => setCinemetaRetry((current) => current + 1)}
           />
           {selectedMovie.isAnimated && selectedMovie.sourcePage && <a className="rr-poster-source" href={selectedMovie.sourcePage} target="_blank" rel="noreferrer">Poster reference · Wikipedia</a>}
