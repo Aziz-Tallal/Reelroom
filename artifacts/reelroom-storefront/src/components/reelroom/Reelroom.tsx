@@ -423,13 +423,8 @@ const INTRO_STILLS = [
   "/intro-shots/shot-11.webp",
   "/intro-shots/shot-12.webp",
   "/intro-shots/shot-13.webp",
-  "/intro-shots/shot-14.webp",
   "/intro-shots/shot-15.webp",
-  "/intro-shots/shot-16.webp",
-  "/intro-shots/shot-17.webp",
   "/intro-shots/shot-18.webp",
-  "/intro-shots/shot-19.webp",
-  "/intro-shots/shot-20.webp",
 ] as const;
 const INTRO_STILL_SPREAD = [
   { x: "-36vw", y: "-27vh", mobileX: "-28vw", mobileY: "-21vh", rotation: "-14deg" },
@@ -447,11 +442,6 @@ const INTRO_STILL_SPREAD = [
   { x: "-40vw", y: "-13vh", mobileX: "-32vw", mobileY: "-10vh", rotation: "-9deg" },
   { x: "40vw", y: "-19vh", mobileX: "32vw", mobileY: "-16vh", rotation: "6deg" },
   { x: "-40vw", y: "25vh", mobileX: "-33vw", mobileY: "21vh", rotation: "13deg" },
-  { x: "39vw", y: "32vh", mobileX: "32vw", mobileY: "24vh", rotation: "-13deg" },
-  { x: "-8vw", y: "43vh", mobileX: "-7vw", mobileY: "35vh", rotation: "-7deg" },
-  { x: "6vw", y: "-43vh", mobileX: "5vw", mobileY: "-35vh", rotation: "4deg" },
-  { x: "-24vw", y: "-5vh", mobileX: "-22vw", mobileY: "-4vh", rotation: "5deg" },
-  { x: "25vw", y: "22vh", mobileX: "23vw", mobileY: "17vh", rotation: "-4deg" },
 ] as const;
 const POSTER_SOURCES: Record<string, string> = {
   interstellar: "https://en.wikipedia.org/wiki/Interstellar_(film)",
