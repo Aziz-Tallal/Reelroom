@@ -363,6 +363,10 @@
   --dvd-rule: rgba(227, 231, 219, .12);
   --dvd-brass: #c9a975;
   --dvd-green: #9ac4a4;
+  --rr-muted: var(--dvd-muted);
+  --rr-line: var(--dvd-rule);
+  --rr-orange: var(--dvd-brass);
+  --rr-green: var(--dvd-green);
   position: fixed;
   z-index: 10000;
   inset: 0;

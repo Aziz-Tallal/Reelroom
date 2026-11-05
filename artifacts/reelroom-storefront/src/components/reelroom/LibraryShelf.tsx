@@ -1,6 +1,8 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
 import { ArrowDownRight, Clapperboard, Disc3, MonitorPlay, X } from "lucide-react";
+import { fetchCinemetaMovie, type CinemetaMovie } from "../../lib/cinemeta";
+import { MovieMetadata, type CinemetaStatus } from "./MovieMetadata";
 import "./LibraryShelf.css";
 
 export type LibraryEdition = {
@@ -83,6 +85,12 @@ export function LibraryShelf({ films, onBrowse }: LibraryShelfProps) {
   const [filter, setFilter] = useState<Filter>("All");
   const [sortOrder, setSortOrder] = useState<SortOrder>("title");
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [cinemetaLookup, setCinemetaLookup] = useState<{
+    movieId: string;
+    status: CinemetaStatus;
+    metadata: CinemetaMovie | null;
+  }>({ movieId: "", status: "idle", metadata: null });
+  const [cinemetaRetry, setCinemetaRetry] = useState(0);
   const [shelfCapacity, setShelfCapacity] = useState(14);
   const caseRefs = useRef(new Map<string, HTMLButtonElement>());
   const dialogRef = useRef<HTMLDivElement>(null);
@@ -115,9 +123,43 @@ export function LibraryShelf({ films, onBrowse }: LibraryShelfProps) {
     (filter === "Physical" ? film.hasPhysical : film.hasDigital)
   ));
   const selected = filmsWithFormats.find((film) => film.movie.id === selectedId);
+  const selectedMovie = selected?.movie;
+  const selectedCinemetaMeta = selectedMovie && cinemetaLookup.movieId === selectedMovie.id
+    ? cinemetaLookup.metadata
+    : null;
+  const selectedCinemetaStatus: CinemetaStatus = selectedMovie
+    ? cinemetaLookup.movieId === selectedMovie.id ? cinemetaLookup.status : "loading"
+    : "idle";
+  const selectedGenre = selectedCinemetaMeta?.genres.length
+    ? selectedCinemetaMeta.genres.join(" · ")
+    : selectedMovie?.genre ?? "";
+  const selectedDirector = selectedCinemetaMeta?.director.length
+    ? selectedCinemetaMeta.director.join(", ")
+    : selectedMovie?.director ?? "";
+  const selectedSynopsis = selectedCinemetaMeta?.description || selectedMovie?.synopsis || "";
   const shelves = Array.from({ length: Math.ceil(visibleFilms.length / shelfCapacity) }, (_, index) => (
     visibleFilms.slice(index * shelfCapacity, (index + 1) * shelfCapacity)
   ));
+
+  useEffect(() => {
+    if (!selectedMovie) return;
+    let active = true;
+    const { id, title, year } = selectedMovie;
+    setCinemetaLookup({ movieId: id, status: "loading", metadata: null });
+    fetchCinemetaMovie(title, year)
+      .then((metadata) => {
+        if (!active) return;
+        setCinemetaLookup({
+          movieId: id,
+          status: metadata ? "ready" : "not-found",
+          metadata,
+        });
+      })
+      .catch(() => {
+        if (active) setCinemetaLookup({ movieId: id, status: "error", metadata: null });
+      });
+    return () => { active = false; };
+  }, [selectedMovie?.id, selectedMovie?.title, selectedMovie?.year, cinemetaRetry]);
 
   useEffect(() => {
     if (!selectedId) return;
@@ -374,9 +416,14 @@ export function LibraryShelf({ films, onBrowse }: LibraryShelfProps) {
                 <span className="rr-eyebrow">Selected from your shelf</span>
                 <h2 id="rr-dvd-dialog-title">{selected.movie.title}</h2>
                 <div className="rr-dvd-meta">
-                  <span>{selected.movie.year}</span><i /><span>{selected.movie.genre}</span><i /><span>Dir. {selected.movie.director}</span>
+                  <span>{selectedCinemetaMeta?.year ?? selected.movie.year}</span><i /><span>{selectedGenre}</span><i /><span>Dir. {selectedDirector}</span>
                 </div>
-                <p className="rr-dvd-synopsis" id="rr-dvd-dialog-description">{selected.movie.synopsis}</p>
+                <p className="rr-dvd-synopsis" id="rr-dvd-dialog-description">{selectedSynopsis}</p>
+                <MovieMetadata
+                  status={selectedCinemetaStatus}
+                  metadata={selectedCinemetaMeta}
+                  onRetry={() => setCinemetaRetry((current) => current + 1)}
+                />
                 <div className="rr-dvd-editions">
                   <div className="rr-dvd-editions-head">
                     <span>Media in your collection</span>

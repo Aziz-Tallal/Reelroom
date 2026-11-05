@@ -4,7 +4,9 @@ import {
   Clapperboard, Film, Heart, Menu, Minus, Play, Plus, RotateCcw, Search,
   ShoppingBag, ShoppingCart, Trash2, X,
 } from "lucide-react";
+import { fetchCinemetaMovie, type CinemetaMovie } from "../../lib/cinemeta";
 import { LibraryShelf, type LibraryEdition, type LibraryShelfFilm } from "./LibraryShelf";
+import { MovieMetadata, type CinemetaStatus } from "./MovieMetadata";
 import "./_group.css";
 import "./Reelroom.css";
 
@@ -14,6 +16,7 @@ type Movie = {
   posterExt?: string; posterPath?: string; sourcePage?: string; isCriterion?: boolean; isAnimated?: boolean; artVariation?: number;
   teaser?: { src: string; approvalStatus: "pending" | "approved"; reviewed: boolean; captionsUrl?: string; hasAudio?: boolean };
 };
+type CinemetaLookup = { movieId: string; status: CinemetaStatus; metadata: CinemetaMovie | null };
 type PosterPreviewContextValue = {
   activeId: string | null;
   setActiveId: (id: string | null) => void;
@@ -1015,6 +1018,8 @@ export function Reelroom() {
   const introCloseTimerRef = useRef<number | null>(null);
   const introHideTimerRef = useRef<number | null>(null);
   const [selectedMovieId, setSelectedMovieId] = useState(MOVIES[0].id);
+  const [cinemetaLookup, setCinemetaLookup] = useState<CinemetaLookup>({ movieId: "", status: "idle", metadata: null });
+  const [cinemetaRetry, setCinemetaRetry] = useState(0);
   const [activePreviewId, setActivePreviewId] = useState<string | null>(null);
   const [selectedPreviewId, setSelectedPreviewId] = useState<string | null>(null);
   const [watchlist, setWatchlist] = useState<string[]>(() => readStored("reelroom-watchlist", []));
@@ -1069,6 +1074,24 @@ export function Reelroom() {
   useEffect(() => { saveStored("reelroom-cart", cart); }, [cart]);
   useEffect(() => { saveStored("reelroom-orders", orders); }, [orders]);
   useEffect(() => { saveStored("reelroom-manual-library", manualLibraryIds); }, [manualLibraryIds]);
+  useEffect(() => {
+    if (view !== "details") return;
+    let active = true;
+    setCinemetaLookup({ movieId: selectedMovie.id, status: "loading", metadata: null });
+    fetchCinemetaMovie(selectedMovie.title, selectedMovie.year)
+      .then((metadata) => {
+        if (!active) return;
+        setCinemetaLookup({
+          movieId: selectedMovie.id,
+          status: metadata ? "ready" : "not-found",
+          metadata,
+        });
+      })
+      .catch(() => {
+        if (active) setCinemetaLookup({ movieId: selectedMovie.id, status: "error", metadata: null });
+      });
+    return () => { active = false; };
+  }, [view, selectedMovie.id, selectedMovie.title, selectedMovie.year, cinemetaRetry]);
   useEffect(() => { if (!toast) return; const timeout = window.setTimeout(() => setToast(""), 2700); return () => window.clearTimeout(timeout); }, [toast]);
   useEffect(() => {
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
@@ -1484,6 +1507,16 @@ export function Reelroom() {
   };
 
   const renderDetails = () => {
+    const cinemetaMeta = cinemetaLookup.movieId === selectedMovie.id ? cinemetaLookup.metadata : null;
+    const cinemetaStatus = cinemetaLookup.movieId === selectedMovie.id ? cinemetaLookup.status : "loading";
+    const detailGenres = cinemetaMeta?.genres.length
+      ? cinemetaMeta.genres.join(" · ")
+      : selectedMovie.genres?.join(" · ") ?? selectedMovie.genre;
+    const detailRuntime = cinemetaMeta?.runtime?.match(/\d+/)?.[0] ?? String(selectedMovie.runtime);
+    const detailDirector = cinemetaMeta?.director.length
+      ? cinemetaMeta.director.join(", ")
+      : selectedMovie.director;
+    const detailSynopsis = cinemetaMeta?.description || selectedMovie.synopsis;
     const options = experience === "Physical" ? ["DVD", "Blu-ray", ...(FOUR_K_DEMO_TITLES.has(selectedMovie.id) ? ["4K Ultra HD"] : [])] : selectedMovie.platforms;
     const setOption = (option: string) => { setSelectedOption(option); setAdded(false); };
     const priceText = typeof itemPrice === "number" ? itemPrice : Number(itemPrice);
@@ -1503,9 +1536,16 @@ export function Reelroom() {
         </div>
         <div className="rr-detail-copy">
           <span className="rr-eyebrow">The REELROOM archive</span><h1>{selectedMovie.title}</h1>
-           <div className="rr-meta-line">{selectedMovie.isCriterion ? <><span>Criterion Collection</span><span>Physical &amp; digital demo options</span></> : <><span>{selectedMovie.year}</span><span>{selectedMovie.genre}</span><span>{selectedMovie.runtime} min</span></>}</div>
-          <p className="rr-synopsis">{selectedMovie.synopsis}</p>
-           <p className="rr-detail-director">{selectedMovie.isCriterion ? "CURATED COLLECTION" : "DIRECTED BY"} <strong>{selectedMovie.director}</strong></p>
+          <div className="rr-meta-line">{selectedMovie.isCriterion && !cinemetaMeta
+            ? <><span>Criterion Collection</span><span>Physical &amp; digital demo options</span></>
+            : <><span>{cinemetaMeta?.year ?? selectedMovie.year}</span><span>{detailGenres}</span><span>{detailRuntime} min</span></>}</div>
+          <p className="rr-synopsis">{detailSynopsis}</p>
+          <p className="rr-detail-director">{selectedMovie.isCriterion && !cinemetaMeta ? "CURATED COLLECTION" : "DIRECTED BY"} <strong>{detailDirector}</strong></p>
+          <MovieMetadata
+            status={cinemetaStatus}
+            metadata={cinemetaMeta}
+            onRetry={() => setCinemetaRetry((current) => current + 1)}
+          />
           {selectedMovie.isAnimated && selectedMovie.sourcePage && <a className="rr-poster-source" href={selectedMovie.sourcePage} target="_blank" rel="noreferrer">Poster reference · Wikipedia</a>}
           <div className="rr-divider"/>
             <div className="rr-demo-note">{selectedMovie.isCriterion ? "Criterion formats, digital platforms, prices, and availability below are illustrative REELROOM options only—not verified stock or streaming rights." : "All availability and prices below are demonstration examples. No real retailer inventory, licensed streaming access, or payments."}</div>
