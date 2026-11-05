@@ -418,14 +418,6 @@ const FILM_STILLS = [
   "/intro-shots/shot-09.webp",
   "/intro-shots/shot-10.webp",
 ] as const;
-const INTRO_STILLS = [
-  ...FILM_STILLS,
-  "/intro-shots/shot-11.webp",
-  "/intro-shots/shot-12.webp",
-  "/intro-shots/shot-13.webp",
-  "/intro-shots/shot-15.webp",
-  "/intro-shots/shot-18.webp",
-] as const;
 const INTRO_STILL_SPREAD = [
   { x: "-36vw", y: "-27vh", mobileX: "-28vw", mobileY: "-21vh", rotation: "-14deg" },
   { x: "34vw", y: "-34vh", mobileX: "27vw", mobileY: "-24vh", rotation: "12deg" },
@@ -437,11 +429,6 @@ const INTRO_STILL_SPREAD = [
   { x: "-16vw", y: "20vh", mobileX: "-12vw", mobileY: "17vh", rotation: "-12deg" },
   { x: "17vw", y: "-12vh", mobileX: "14vw", mobileY: "-11vh", rotation: "13deg" },
   { x: "7vw", y: "31vh", mobileX: "5vw", mobileY: "31vh", rotation: "-4deg" },
-  { x: "-19vw", y: "-42vh", mobileX: "-17vw", mobileY: "-32vh", rotation: "-6deg" },
-  { x: "20vw", y: "-42vh", mobileX: "18vw", mobileY: "-33vh", rotation: "10deg" },
-  { x: "-40vw", y: "-13vh", mobileX: "-32vw", mobileY: "-10vh", rotation: "-9deg" },
-  { x: "40vw", y: "-19vh", mobileX: "32vw", mobileY: "-16vh", rotation: "6deg" },
-  { x: "-40vw", y: "25vh", mobileX: "-33vw", mobileY: "21vh", rotation: "13deg" },
 ] as const;
 const POSTER_SOURCES: Record<string, string> = {
   interstellar: "https://en.wikipedia.org/wiki/Interstellar_(film)",
@@ -1711,7 +1698,7 @@ export function Reelroom() {
         <div className="rr-intro-ring rr-intro-ring-back" aria-hidden="true"/>
         <div className="rr-intro-ring rr-intro-ring-front" aria-hidden="true"/>
         <div className="rr-intro-still-field" aria-hidden="true">
-          {INTRO_STILLS.map((image, index) => {
+          {FILM_STILLS.map((image, index) => {
             const spread = INTRO_STILL_SPREAD[index];
             return <div className="rr-intro-still" key={image} style={{
               "--intro-x": spread.x,
@@ -1719,7 +1706,7 @@ export function Reelroom() {
               "--intro-x-mobile": spread.mobileX,
               "--intro-y-mobile": spread.mobileY,
               "--intro-rotation": spread.rotation,
-              "--intro-delay": `${index * 110}ms`,
+              "--intro-delay": `${index * 280}ms`,
             } as CSSProperties}>
               <img src={image} alt="" fetchPriority={index === 0 ? "high" : "auto"}/>
             </div>;
