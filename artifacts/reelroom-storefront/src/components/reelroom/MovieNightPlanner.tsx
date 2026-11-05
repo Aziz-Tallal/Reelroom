@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type DragEvent, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type DragEvent, type FormEvent } from "react";
 import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, BookmarkPlus, Clock3, Film, GripVertical, RotateCw, Sparkles } from "lucide-react";
 import { useCreateMovieNightPlan } from "@workspace/api-client-react";
 import type { MovieNightCandidate, MovieNightPlanResponse, MovieNightRequest, MovieNightRequestMoodsItem, MovieNightRequestViewingExperience } from "@workspace/api-client-react";
@@ -112,6 +112,8 @@ export function MovieNightPlanner({ movies, watchlistIds, onAddToWatchlist }: Mo
   const [replaceTarget, setReplaceTarget] = useState<string | null>(null);
   const [draggedId, setDraggedId] = useState<string | null>(null);
   const [isReplacing, setIsReplacing] = useState(false);
+  const [isPreparing, setIsPreparing] = useState(false);
+  const planningRef = useRef(false);
 
   const movieById = useMemo(() => new Map(movies.map((movie) => [movie.id, movie])), [movies]);
   const genres = useMemo(() => Array.from(new Set(movies.flatMap((movie) => movie.genres?.length ? movie.genres : [movie.genre]).filter(Boolean))).sort(), [movies]);
@@ -179,9 +181,37 @@ export function MovieNightPlanner({ movies, watchlistIds, onAddToWatchlist }: Mo
   }
 
   async function buildRequest(): Promise<MovieNightRequest> {
+    const moodGenres: Record<string, string[]> = {
+      "Relaxing and cozy": ["comedy", "romance", "animation", "drama"],
+      "Dark and mysterious": ["mystery", "thriller", "crime", "horror"],
+      "Mind-bending": ["sci-fi", "mystery", "thriller"],
+      Romantic: ["romance", "drama", "comedy"],
+      "Funny and lighthearted": ["comedy", "animation", "adventure"],
+      Emotional: ["drama", "romance", "animation"],
+      "Exciting and intense": ["action", "thriller", "crime", "sci-fi"],
+      "Surreal and experimental": ["fantasy", "sci-fi", "drama", "animation"],
+      "Surprise me": [],
+    };
+    const preferredGenreNames = new Set(preferences.genres.map((genre) => genre.toLowerCase()));
+    const moodGenreNames = new Set(preferences.moods.flatMap((mood) => moodGenres[mood] ?? []));
+    const preferredDirectorNames = preferences.directors.split(",").map((name) => name.trim().toLowerCase()).filter(Boolean);
     const eligible = movies
       .filter((movie) => !preferences.avoidIds.includes(movie.id) && movie.year >= 1888)
-      .slice(0, 60);
+      .sort((first, second) => {
+        const score = (movie: PlannerMovie) => {
+          const movieGenres = (movie.genres?.length ? movie.genres : [movie.genre]).map((genre) => genre.toLowerCase());
+          let value = movieGenres.reduce((sum, genre) => {
+            return sum + (preferredGenreNames.has(genre) ? 4 : 0) + (moodGenreNames.has(genre) ? 2 : 0);
+          }, 0);
+          const director = movie.director.toLowerCase();
+          if (preferredDirectorNames.some((name) => director.includes(name) || name.includes(director))) value += 4;
+          if (preferences.decades.includes(Math.floor(movie.year / 10) * 10)) value += 2;
+          if (movie.runtime > 0 && movie.runtime <= availableDuration) value += 1;
+          return value;
+        };
+        return score(second) - score(first);
+      })
+      .slice(0, 24);
     const candidateResults: Array<MovieNightCandidate | null> = Array(eligible.length).fill(null);
     let nextIndex = 0;
     const enrichCandidates = async () => {
@@ -229,6 +259,7 @@ export function MovieNightPlanner({ movies, watchlistIds, onAddToWatchlist }: Mo
 
   async function createPlan(event?: FormEvent, excludeCurrentFilms = false) {
     event?.preventDefault();
+    if (planningRef.current) return;
     if (!preferences.moods.length) {
       setError("Choose at least one mood to begin.");
       return;
@@ -243,6 +274,8 @@ export function MovieNightPlanner({ movies, watchlistIds, onAddToWatchlist }: Mo
         : "There are no films left in the collection with those exclusions.");
       return;
     }
+    planningRef.current = true;
+    setIsPreparing(true);
     setError("");
     try {
       const request = await buildRequest();
@@ -263,6 +296,9 @@ export function MovieNightPlanner({ movies, watchlistIds, onAddToWatchlist }: Mo
       setReplaceTarget(null);
     } catch {
       setError("We couldn't build that plan just now. Your preferences are saved; try again.");
+    } finally {
+      planningRef.current = false;
+      setIsPreparing(false);
     }
   }
 
@@ -339,7 +375,7 @@ export function MovieNightPlanner({ movies, watchlistIds, onAddToWatchlist }: Mo
     setDraggedId(null);
   }
 
-  const loading = planMutation.isPending;
+  const loading = planMutation.isPending || isPreparing || isReplacing;
   const movieCountText = movies.length === 1 ? "1 film" : `${movies.length} films`;
 
   return (

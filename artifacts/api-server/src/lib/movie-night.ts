@@ -9,7 +9,7 @@ const MODELS = [
   "google/gemma-4-31b-it:free",
   "nvidia/nemotron-3.5-super-vl:free",
 ];
-const REQUEST_TIMEOUT_MS = 30_000;
+const REQUEST_TIMEOUT_MS = 45_000;
 
 type ParsedPlan = {
   title: string;
