@@ -12,6 +12,7 @@ import {
 } from "../../lib/cinemeta";
 import { LibraryShelf, type LibraryEdition, type LibraryShelfFilm } from "./LibraryShelf";
 import { MovieMetadata, type CinemetaStatus } from "./MovieMetadata";
+import { MovieNightPlanner } from "./MovieNightPlanner";
 import "./_group.css";
 import "./Reelroom.css";
 
@@ -36,7 +37,7 @@ type PosterPreviewContextValue = {
 const PosterPreviewContext = createContext<PosterPreviewContextValue>({
   activeId: null, setActiveId: () => undefined, selectedId: null, setSelectedId: () => undefined,
 });
-type View = "home" | "browse" | "physical" | "digital" | "details" | "watchlist" | "cart" | "checkout" | "library" | "about" | "contact" | "ad";
+type View = "home" | "browse" | "physical" | "digital" | "details" | "watchlist" | "movieNight" | "cart" | "checkout" | "library" | "about" | "contact" | "ad";
 type Collection = "All films" | "Digital only" | "Physical only" | "Top 100" | "Academy Award films" | "Animated movies";
 type ClassicSeed = [id: string, title: string, year: number, genre: string, runtime: number, director: string, synopsis: string, wikiSlug: string, posterExt: string];
 type AnimatedSeed = [id: string, title: string, year: number, runtime: number, director: string, synopsis: string, palette: [string, string]];
@@ -1193,6 +1194,11 @@ export function Reelroom() {
     setWatchlist((current) => exists ? current.filter((savedId) => savedId !== id) : [...current, id]);
     setToast(exists ? "Removed from your watchlist" : "Saved to your watchlist");
   };
+  const addToWatchlistFromPlanner = (id: string) => {
+    if (watchlist.includes(id)) return;
+    setWatchlist((current) => current.includes(id) ? current : [...current, id]);
+    setToast("Saved to your watchlist");
+  };
   const isMovieInLibrary = (id: string) => manualLibraryIds.includes(id) || orderedMovieIds.has(id);
   const isLibraryOrder = (id: string) => orderedMovieIds.has(id);
   const libraryActionLabel = (id: string) => isLibraryOrder(id)
@@ -1320,7 +1326,7 @@ export function Reelroom() {
 
   const renderNav = () => {
     const links: { label: string; target: View }[] = [
-      { label: "Movies", target: "browse" }, { label: "Physical", target: "physical" },
+      { label: "Movies", target: "browse" }, { label: "Plan a night", target: "movieNight" }, { label: "Physical", target: "physical" },
       { label: "Digital", target: "digital" }, { label: "About", target: "about" },
     ];
     return <>
@@ -1734,7 +1740,7 @@ export function Reelroom() {
 
   const renderFooter = () => <footer className="rr-footer"><div className="rr-wrap"><div className="rr-footer-top">
     <div className="rr-footer-brand"><Logo onClick={() => navigate("home")}/><p>A curated cinema archive. Every film, your way. Made for movie lovers in Kuwait and wherever the credits roll.</p></div>
-    <div className="rr-footer-col"><h4>Explore</h4><button onClick={() => navigate("browse")}>All movies</button><button onClick={() => navigate("physical")}>Physical cinema</button><button onClick={() => navigate("digital")}>Digital cinema</button><button onClick={() => navigate("watchlist")}>Watchlist</button></div>
+    <div className="rr-footer-col"><h4>Explore</h4><button onClick={() => navigate("browse")}>All movies</button><button onClick={() => navigate("movieNight")}>Plan a movie night</button><button onClick={() => navigate("physical")}>Physical cinema</button><button onClick={() => navigate("digital")}>Digital cinema</button><button onClick={() => navigate("watchlist")}>Watchlist</button></div>
     <div className="rr-footer-col"><h4>REELROOM</h4><button onClick={() => navigate("about")}>About & how it works</button><button onClick={() => navigate("contact")}>Contact</button><button onClick={() => navigate("ad")}>12-second brand reel</button><button onClick={() => navigate("library")}>My library</button></div>
     <div className="rr-footer-col"><h4>A clear note</h4><p style={{ marginTop: 0 }}>This is a demonstration storefront. Prices and availability are examples. No payments or streaming rights are provided.</p><span style={{ color: "#00E054", fontSize: 10, display: "block", marginTop: 14 }}>Kuwait · KWD</span></div>
   </div><div className="rr-footer-bottom"><span>© 2025 REELROOM · Every Film. Your Way.</span><span>Original cinema, considered carefully.</span></div></div></footer>;
@@ -1742,6 +1748,7 @@ export function Reelroom() {
   const content = view === "home" ? renderHome()
     : view === "browse" || view === "physical" || view === "digital" || view === "watchlist" ? renderCatalog()
     : view === "details" ? renderDetails()
+    : view === "movieNight" ? <MovieNightPlanner movies={MOVIES} watchlistIds={watchlist} onAddToWatchlist={addToWatchlistFromPlanner}/>
     : view === "cart" ? renderCart()
     : view === "checkout" ? renderCheckout()
     : view === "library" ? renderLibrary()

@@ -10,6 +10,8 @@ servers:
 tags:
   - name: health
     description: Health operations
+  - name: movie-night
+    description: Personalized movie-night planning
 paths:
   /healthz:
     get:
@@ -24,6 +26,37 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+  /movie-night/plan:
+    post:
+      operationId: createMovieNightPlan
+      tags: [movie-night]
+      summary: Create a personalized movie-night plan
+      description: Recommends only movies supplied from the REELROOM catalog.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MovieNightRequest"
+      responses:
+        "200":
+          description: Curated movie-night plan
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MovieNightPlanResponse"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MovieNightErrorResponse"
+        "503":
+          description: AI curator unavailable
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MovieNightErrorResponse"
 components:
   schemas:
     HealthStatus:
@@ -33,4 +66,189 @@ components:
           type: string
       required:
         - status
+    MovieNightCandidate:
+      type: object
+      properties:
+        id:
+          type: string
+          minLength: 1
+          maxLength: 100
+        title:
+          type: string
+          minLength: 1
+          maxLength: 200
+        year:
+          type: integer
+          minimum: 1888
+          maximum: 2100
+        genres:
+          type: array
+          maxItems: 12
+          items:
+            type: string
+            maxLength: 60
+        director:
+          type: string
+          maxLength: 200
+        synopsis:
+          type: string
+          maxLength: 1200
+        runtimeMinutes:
+          type: ["integer", "null"]
+          minimum: 1
+          maximum: 1000
+        cinemetaDescription:
+          type: ["string", "null"]
+          maxLength: 2000
+        cinemetaGenres:
+          type: array
+          maxItems: 12
+          items:
+            type: string
+            maxLength: 60
+        cinemetaRuntimeMinutes:
+          type: ["integer", "null"]
+          minimum: 1
+          maximum: 1000
+      required:
+        - id
+        - title
+        - year
+        - genres
+        - director
+        - synopsis
+        - runtimeMinutes
+        - cinemetaDescription
+        - cinemetaGenres
+        - cinemetaRuntimeMinutes
+    MovieNightRequest:
+      type: object
+      properties:
+        moods:
+          type: array
+          minItems: 1
+          maxItems: 9
+          items:
+            type: string
+            enum:
+              - Relaxing and cozy
+              - Dark and mysterious
+              - Mind-bending
+              - Romantic
+              - Funny and lighthearted
+              - Emotional
+              - Exciting and intense
+              - Surreal and experimental
+              - Surprise me
+        availableMinutes:
+          type: integer
+          minimum: 60
+          maximum: 1440
+        startTime:
+          type: string
+          pattern: '^(?:[01]\d|2[0-3]):[0-5]\d$'
+        viewingExperience:
+          type: string
+          enum: [alone, date, friends, family]
+        preferredGenres:
+          type: array
+          maxItems: 12
+          items:
+            type: string
+            maxLength: 60
+        favoriteDirectors:
+          type: array
+          maxItems: 12
+          items:
+            type: string
+            maxLength: 200
+        preferredDecades:
+          type: array
+          maxItems: 15
+          items:
+            type: integer
+            minimum: 1880
+            maximum: 2090
+        avoidMovieIds:
+          type: array
+          maxItems: 100
+          uniqueItems: true
+          items:
+            type: string
+            maxLength: 100
+        maxMovies:
+          type: integer
+          minimum: 1
+          maximum: 8
+        breakMinutes:
+          type: integer
+          minimum: 0
+          maximum: 180
+        customBreakMinutes:
+          type: integer
+          minimum: 0
+          maximum: 180
+        notes:
+          type: string
+          maxLength: 500
+        candidates:
+          type: array
+          minItems: 1
+          maxItems: 60
+          items:
+            $ref: "#/components/schemas/MovieNightCandidate"
+      required:
+        - moods
+        - availableMinutes
+        - startTime
+        - viewingExperience
+        - preferredGenres
+        - favoriteDirectors
+        - preferredDecades
+        - avoidMovieIds
+        - maxMovies
+        - breakMinutes
+        - customBreakMinutes
+        - notes
+        - candidates
+    MovieNightRecommendation:
+      type: object
+      properties:
+        movieId:
+          type: string
+          minLength: 1
+          maxLength: 100
+        reason:
+          type: string
+          minLength: 1
+          maxLength: 400
+      required:
+        - movieId
+        - reason
+    MovieNightPlanResponse:
+      type: object
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 120
+        summary:
+          type: string
+          maxLength: 800
+        recommendations:
+          type: array
+          maxItems: 8
+          items:
+            $ref: "#/components/schemas/MovieNightRecommendation"
+      required:
+        - title
+        - summary
+        - recommendations
+    MovieNightErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+      required:
+        - error
 
