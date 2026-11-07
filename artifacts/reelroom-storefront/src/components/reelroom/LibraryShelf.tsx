@@ -159,7 +159,7 @@ export function LibraryShelf({ films, onBrowse }: LibraryShelfProps) {
     let active = true;
     const { id, title, year } = selectedMovie;
     setCinemetaLookup({ movieId: id, status: "loading", metadata: null });
-    fetchCinemetaMovie(title, year)
+    fetchCinemetaMovie(title, year > 0 ? year : undefined)
       .then((metadata) => {
         if (!active) return;
         setCinemetaLookup({
@@ -356,7 +356,7 @@ export function LibraryShelf({ films, onBrowse }: LibraryShelfProps) {
                               >
                                 <span className="rr-dvd-spine-cap" />
                                 <span className="rr-dvd-spine-title">{movie.title}</span>
-                                <span className="rr-dvd-spine-year">{movie.year}</span>
+                                {movie.year > 0 && <span className="rr-dvd-spine-year">{movie.year}</span>}
                                 <span className="rr-dvd-spine-status" aria-hidden="true">
                                   {editions.some((edition) => edition.mode === "Buy") && <i className="owned-dot" />}
                                   {editions.some((edition) => edition.mode === "Rent") && <i className="rental-dot" />}
@@ -434,7 +434,7 @@ export function LibraryShelf({ films, onBrowse }: LibraryShelfProps) {
                 <span className="rr-eyebrow">Selected from your shelf</span>
                 <h2 id="rr-dvd-dialog-title">{selected.movie.title}</h2>
                 <div className="rr-dvd-meta">
-                  <span>{selectedCinemetaMeta?.year ?? selected.movie.year}</span><i /><span>{selectedGenre}</span><i /><span>Dir. {selectedDirector}</span>
+                  {(selectedCinemetaMeta?.year || (selected.movie.year > 0 ? selected.movie.year : null)) && <><span>{selectedCinemetaMeta?.year || selected.movie.year}</span><i /></>}<span>{selectedGenre}</span><i /><span>Dir. {selectedDirector}</span>
                 </div>
                 <p className="rr-dvd-synopsis" id="rr-dvd-dialog-description">{selectedSynopsis}</p>
                 <MovieMetadata

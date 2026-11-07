@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent, type PointerEvent as ReactPointerEvent, type ReactNode, type TransitionEvent as ReactTransitionEvent } from "react";
+import { createContext, useContext, useEffect, useMemo, useRef, useState, useCallback, type CSSProperties, type FormEvent, type PointerEvent as ReactPointerEvent, type ReactNode, type TransitionEvent as ReactTransitionEvent } from "react";
 import {
   ArrowDownRight, ArrowLeft, ArrowRight, Check, CheckCircle2,
   Clapperboard, Film, Heart, Menu, Minus, Play, Plus, RotateCcw, Search,
@@ -10,6 +10,16 @@ import {
   getCinemetaErrorMessage,
   type CinemetaMovie,
 } from "../../lib/cinemeta";
+import {
+  getSupabaseClient,
+  toCartVariantId,
+  type AccountOrderItemRecord,
+  type AccountOrderRecord,
+  type ProductRecord,
+  type ProductVariantRecord,
+  type ProfileRecord,
+} from "../../lib/supabase";
+import type { User } from "@supabase/supabase-js";
 import { LibraryShelf, type LibraryEdition, type LibraryShelfFilm } from "./LibraryShelf";
 import { MovieMetadata, type CinemetaStatus } from "./MovieMetadata";
 import { MovieNightPlanner } from "./MovieNightPlanner";
@@ -20,6 +30,7 @@ type Movie = {
   id: string; title: string; year: number; genre: string; genres?: string[]; runtime: number;
   director: string; synopsis: string; palette: [string, string]; platforms: string[];
   posterExt?: string; posterPath?: string; sourcePage?: string; isCriterion?: boolean; isAnimated?: boolean; artVariation?: number;
+  collections?: string[]; featured?: boolean; physicalAvailable?: boolean; variants?: ProductVariantRecord[];
   teaser?: { src: string; approvalStatus: "pending" | "approved"; reviewed: boolean; captionsUrl?: string; hasAudio?: boolean };
 };
 type CinemetaLookup = {
@@ -37,18 +48,119 @@ type PosterPreviewContextValue = {
 const PosterPreviewContext = createContext<PosterPreviewContextValue>({
   activeId: null, setActiveId: () => undefined, selectedId: null, setSelectedId: () => undefined,
 });
-type View = "home" | "browse" | "physical" | "digital" | "details" | "watchlist" | "movieNight" | "cart" | "checkout" | "library" | "about" | "contact" | "ad";
+type View = "home" | "browse" | "physical" | "digital" | "details" | "watchlist" | "movieNight" | "cart" | "checkout" | "library" | "orders" | "account" | "auth" | "about" | "contact" | "ad";
 type Collection = "All films" | "Digital only" | "Physical only" | "Top 100" | "Academy Award films" | "Animated movies";
 type ClassicSeed = [id: string, title: string, year: number, genre: string, runtime: number, director: string, synopsis: string, wikiSlug: string, posterExt: string];
 type AnimatedSeed = [id: string, title: string, year: number, runtime: number, director: string, synopsis: string, palette: [string, string]];
 const COLLECTIONS: Collection[] = ["All films", "Digital only", "Physical only", "Top 100", "Academy Award films", "Animated movies"];
 type CartLine = {
   key: string; movieId: string; experience: "Physical" | "Digital"; mode: "Buy" | "Rent";
-  option: string; price: number; quantity: number; rental: string;
+  option: string; price: number; quantity: number; rental: string; variantId?: string | null;
+  movieTitleSnapshot?: string; posterUrlSnapshot?: string | null;
 };
-type DemoOrder = { id: string; date: string; customer: string; total: number; items: CartLine[]; fulfillment: string };
+type DemoOrder = { id: string; date: string; customer: string; total: number; items: CartLine[]; fulfillment: string; databaseId?: string };
 type CheckoutData = { name: string; email: string; phone: string; fulfillment: string; address: string; note: string };
 type CriterionFilm = { title: string; poster: string; source: string };
+
+const EMPTY_MOVIE: Movie = {
+  id: "", title: "", year: 0, genre: "", runtime: 0, director: "", synopsis: "",
+  palette: ["#202629", "#8b9c91"], platforms: [], variants: [],
+};
+
+function mapProductToMovie(product: ProductRecord, variants: ProductVariantRecord[]): Movie {
+  const productVariants = variants.filter((variant) => variant.product_id === product.id && variant.available);
+  const palette = Array.isArray(product.palette) && product.palette.length >= 2 ? product.palette : ["#202629", "#8b9c91"];
+  return {
+    id: product.id,
+    title: product.title,
+    year: product.release_year ?? 0,
+    genre: product.genre || "Uncategorized",
+    genres: product.genres ?? [],
+    runtime: product.runtime ?? 0,
+    director: product.director ?? "",
+    synopsis: product.description ?? "",
+    palette: [palette[0], palette[1]],
+    platforms: [...new Set(productVariants.filter((variant) => variant.media_type === "digital").map((variant) => variant.platform).filter((platform): platform is string => Boolean(platform)))],
+    posterPath: product.poster_url ?? undefined,
+    sourcePage: product.source_page ?? undefined,
+    isCriterion: product.is_criterion,
+    isAnimated: product.is_animated,
+    collections: product.collections ?? [],
+    featured: product.featured,
+    physicalAvailable: productVariants.some((variant) => variant.media_type === "physical"),
+    variants: productVariants,
+  };
+}
+
+function formatVariantOption(variant: ProductVariantRecord): string {
+  return variant.media_type === "physical" ? variant.format ?? "" : variant.platform ?? "";
+}
+
+function optionsForMovie(movie: Movie, experience: "Physical" | "Digital", mode: "Buy" | "Rent"): string[] {
+  const mediaType = experience === "Physical" ? "physical" : "digital";
+  const transactionType = mode.toLowerCase();
+  return [...new Set((movie.variants ?? [])
+    .filter((variant) => variant.available && variant.media_type === mediaType && variant.transaction_type === transactionType)
+    .map(formatVariantOption)
+    .filter(Boolean))];
+}
+
+function findMovieVariant(movie: Movie, experience: "Physical" | "Digital", mode: "Buy" | "Rent", option: string): ProductVariantRecord | undefined {
+  const mediaType = experience === "Physical" ? "physical" : "digital";
+  const transactionType = mode.toLowerCase();
+  return movie.variants?.find((variant) =>
+    variant.available
+    && variant.media_type === mediaType
+    && variant.transaction_type === transactionType
+    && formatVariantOption(variant) === option,
+  );
+}
+
+function cartLineFromVariant(movie: Movie, variant: ProductVariantRecord, quantity: number): CartLine {
+  const experience = variant.media_type === "physical" ? "Physical" : "Digital";
+  const mode = variant.transaction_type === "buy" ? "Buy" : "Rent";
+  const option = formatVariantOption(variant);
+  const rental = mode === "Rent"
+    ? `${variant.rental_duration_days ?? (experience === "Physical" ? 7 : 30)}-day ${experience.toLowerCase()} rental`
+    : "Permanent collection / demo ownership";
+  return {
+    key: variant.id,
+    variantId: variant.id,
+    movieId: movie.id,
+    movieTitleSnapshot: movie.title,
+    posterUrlSnapshot: movie.posterPath,
+    experience,
+    mode,
+    option,
+    price: Number(variant.price_kwd),
+    quantity: Math.max(1, Math.min(12, quantity)),
+    rental,
+  };
+}
+
+function formatAccountOrder(order: AccountOrderRecord, items: AccountOrderItemRecord[]): DemoOrder {
+  return {
+    id: order.order_number,
+    databaseId: order.id,
+    date: new Date(order.created_at).toLocaleDateString("en-KW", { day: "numeric", month: "short", year: "numeric" }),
+    customer: order.contact_name,
+    total: Number(order.total_kwd),
+    fulfillment: order.fulfillment_method,
+    items: items.filter((item) => item.order_id === order.id).map((item) => ({
+      key: item.id,
+      variantId: item.variant_id,
+      movieId: item.product_id ?? item.id,
+      movieTitleSnapshot: item.product_title,
+      posterUrlSnapshot: item.poster_url,
+      experience: item.media_type === "physical" ? "Physical" : "Digital",
+      mode: item.transaction_type === "buy" ? "Buy" : "Rent",
+      option: item.media_type === "physical" ? item.selected_format ?? "Disc" : item.selected_platform ?? "Digital",
+      price: Number(item.unit_price_kwd),
+      quantity: item.quantity,
+      rental: item.transaction_type === "rent" ? `${item.rental_duration_days ?? 0}-day rental` : "Demo ownership",
+    })),
+  };
+}
 
 const BASE_MOVIES: Movie[] = [
   { id: "interstellar", title: "Interstellar", year: 2014, genre: "Sci-Fi", runtime: 169, director: "Christopher Nolan", synopsis: "With Earth nearing the edge of habitability, a team of explorers travels beyond this galaxy to discover whether mankind has a future among the stars.", palette: ["#101f27", "#9ba97f"], platforms: ["Apple TV", "Amazon Prime Video", "Google TV"] },
@@ -794,7 +906,7 @@ function Poster({
       <Heart size={15} fill={saved ? "currentColor" : "none"} />
     </button>
     <span className="rr-poster-title">{movie.title}</span>
-    <span className="rr-poster-year">{movie.isCriterion ? "CRITERION COLLECTION" : `${movie.year} · ${movie.genre.toUpperCase()}`}</span>
+    <span className="rr-poster-year">{movie.isCriterion ? "CRITERION COLLECTION" : [movie.year > 0 ? movie.year : null, movie.genre.toUpperCase()].filter(Boolean).join(" · ")}</span>
     <div className="rr-card-actions">
       <button className="rr-card-action" onClick={(event) => { event.stopPropagation(); closePreview(); onClick(); }}>Details <ArrowRight size={12}/></button>
       <button className="rr-card-action" aria-label={`Favorite ${movie.title}`} onClick={(event) => { event.stopPropagation(); onFavorite(); }}><Heart size={13} fill={saved ? "currentColor" : "none"}/></button>
@@ -829,7 +941,7 @@ function Poster({
         <div className="rr-preview-copy">
           <span className="rr-preview-kicker">A closer look · REELROOM</span>
           <h2>{movie.title}</h2>
-          <p className="rr-preview-meta">{movie.year} <span>·</span> {movie.genre} <span>·</span> {movie.runtime} min</p>
+          <p className="rr-preview-meta">{[movie.year > 0 ? String(movie.year) : null, movie.genre || null, movie.runtime > 0 ? `${movie.runtime} min` : null].filter(Boolean).join(" · ")}</p>
           <p className="rr-preview-synopsis">{movie.synopsis}</p>
           <div className="rr-preview-actions">
             <button className="rr-button" onClick={() => { closePreview(); onClick(); }}>View movie <ArrowRight size={14}/></button>
@@ -871,8 +983,14 @@ function MovieCard({
   libraryLocked: boolean;
   onToggleLibrary: () => void;
 }) {
-  const base = Math.min(...Object.values(PHYSICAL_PRICE.Buy));
-  const availability = movie.platforms.length ? "Disc · Digital" : "Physical only";
+  const base = Math.min(...(movie.variants ?? []).filter((variant) => variant.available).map((variant) => Number(variant.price_kwd)));
+  const availability = movie.physicalAvailable && movie.platforms.length ? "Disc · Digital"
+    : movie.platforms.length ? "Digital only" : "Physical only";
+  const metadata = [
+    movie.year > 0 ? String(movie.year) : null,
+    movie.genre || null,
+    movie.runtime > 0 ? `${movie.runtime} min` : null,
+  ].filter(Boolean);
   return <article className="rr-movie-card">
     <Poster
       movie={movie}
@@ -885,8 +1003,8 @@ function MovieCard({
     />
     <div className="rr-movie-info">
       <h3 className="rr-movie-title">{movie.title}</h3>
-      <div className="rr-movie-sub">{movie.isCriterion ? "Criterion Collection · Physical & digital" : <>{movie.year} <span aria-hidden="true">·</span> {movie.genre} <span aria-hidden="true">·</span> {movie.runtime} min</>}</div>
-      <div className="rr-movie-bottom"><span className="rr-price">From {money(base)}</span><span className="rr-tags">{availability}{ACADEMY_AWARD_IDS.has(movie.id) ? " · Academy award" : ""}</span></div>
+      <div className="rr-movie-sub">{movie.isCriterion ? "Criterion Collection · Physical & digital" : metadata.join(" · ") || "Film details available"}</div>
+      <div className="rr-movie-bottom"><span className="rr-price">{Number.isFinite(base) ? `From ${money(base)}` : "Options unavailable"}</span><span className="rr-tags">{availability}{movie.collections?.includes("academy_award") ? " · Academy award" : ""}</span></div>
     </div>
   </article>;
 }
@@ -1024,19 +1142,41 @@ function RotatingMovieShelf({ items, ariaLabel, columns = "four", renderMovie }:
 
 export function Reelroom() {
   const [view, setView] = useState<View>("home");
+  const [movies, setMovies] = useState<Movie[]>([]);
+  const [variants, setVariants] = useState<ProductVariantRecord[]>([]);
+  const [catalogStatus, setCatalogStatus] = useState<"loading" | "ready" | "error">("loading");
+  const [catalogError, setCatalogError] = useState("");
+  const [catalogRetry, setCatalogRetry] = useState(0);
+  const catalogFetchedAt = useRef(0);
   const [introVisible, setIntroVisible] = useState(true);
   const [introClosing, setIntroClosing] = useState(false);
   const introCloseTimerRef = useRef<number | null>(null);
   const introHideTimerRef = useRef<number | null>(null);
-  const [selectedMovieId, setSelectedMovieId] = useState(MOVIES[0].id);
+  const [selectedMovieId, setSelectedMovieId] = useState("");
   const [cinemetaLookup, setCinemetaLookup] = useState<CinemetaLookup>({ movieId: "", status: "idle", metadata: null });
   const [cinemetaRetry, setCinemetaRetry] = useState(0);
   const [activePreviewId, setActivePreviewId] = useState<string | null>(null);
   const [selectedPreviewId, setSelectedPreviewId] = useState<string | null>(null);
   const [watchlist, setWatchlist] = useState<string[]>(() => readStored("reelroom-watchlist", []));
   const [cart, setCart] = useState<CartLine[]>(() => readStored("reelroom-cart", []));
-  const [orders, setOrders] = useState<DemoOrder[]>(() => readStored("reelroom-orders", []));
+  const [localOrders] = useState<DemoOrder[]>(() => readStored("reelroom-orders", []));
+  const [orders, setOrders] = useState<DemoOrder[]>([]);
   const [manualLibraryIds, setManualLibraryIds] = useState<string[]>(() => readStored("reelroom-manual-library", []));
+  const [authUser, setAuthUser] = useState<User | null>(null);
+  const [profile, setProfile] = useState<ProfileRecord | null>(null);
+  const [authMode, setAuthMode] = useState<"login" | "signup" | "forgot" | "reset" | "verify">("login");
+  const [authReturnView, setAuthReturnView] = useState<View>("home");
+  const [authError, setAuthError] = useState("");
+  const [authNotice, setAuthNotice] = useState("");
+  const [authBusy, setAuthBusy] = useState(false);
+  const [orderSubmitting, setOrderSubmitting] = useState(false);
+  const [authPasswordVisible, setAuthPasswordVisible] = useState(false);
+  const [accountMenuOpen, setAccountMenuOpen] = useState(false);
+  const [accountStateError, setAccountStateError] = useState("");
+  const [accountDataHydratedFor, setAccountDataHydratedFor] = useState<string | null>(null);
+  const [cartHydratedFor, setCartHydratedFor] = useState<string | null>(null);
+  const [profileSaving, setProfileSaving] = useState(false);
+  const currentUserIdRef = useRef<string | null>(null);
   const [toast, setToast] = useState("");
   const [mobileOpen, setMobileOpen] = useState(false);
   const navContainerRef = useRef<HTMLDivElement>(null);
@@ -1063,38 +1203,250 @@ export function Reelroom() {
   const [adPlaying, setAdPlaying] = useState(false);
   const [adKey, setAdKey] = useState(0);
 
-  const selectedMovie = movieFor(selectedMovieId);
+  const selectedMovie = movies.find((movie) => movie.id === selectedMovieId) ?? movies[0] ?? EMPTY_MOVIE;
+  const movieFor = (id: string) => movies.find((movie) => movie.id === id) ?? {
+    ...EMPTY_MOVIE, id, title: id.replaceAll("-", " "),
+  };
   const cartCount = cart.reduce((sum, item) => sum + item.quantity, 0);
   const cartTotal = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
   const orderedMovieIds = useMemo(
-    () => new Set(orders.flatMap((order) => order.items.map((item) => item.movieId))),
-    [orders],
+    () => new Set([...orders, ...localOrders].flatMap((order) => order.items.map((item) => item.movieId))),
+    [orders, localOrders],
   );
-  const genres = useMemo(() => ["All genres", ...Array.from(new Set(MOVIES.flatMap((movie) => movie.genres ?? [movie.genre]))).sort()], []);
+  const genres = useMemo(() => ["All genres", ...Array.from(new Set(movies.flatMap((movie) => movie.genres ?? [movie.genre]).filter(Boolean))).sort()], [movies]);
   const catalogPrice = (movie: Movie) => {
-    const digital = view === "digital" || modeFilter === "Digital";
-    const renting = modeFilter === "Rent";
-    if (digital) {
-      if (!movie.platforms.length) return Number.POSITIVE_INFINITY;
-      const cheapestPlatform = Math.min(...movie.platforms.map((platform) => PLATFORM_RENT_PRICE[platform] ?? 2.5));
-      return cheapestPlatform * (renting ? 1 : 3.2);
-    }
-    return renting ? 1 : 3.5;
+    const wantsDigital = view === "digital" || modeFilter === "Digital" || format === "Digital" || collection === "Digital only";
+    const mediaType = wantsDigital ? "digital" : modeFilter === "Physical" || view === "physical" ? "physical" : null;
+    const transactionType = modeFilter === "Rent" ? "rent" : "buy";
+    const prices = (movie.variants ?? [])
+      .filter((variant) => variant.available
+        && (!mediaType || variant.media_type === mediaType)
+        && variant.transaction_type === transactionType)
+      .map((variant) => Number(variant.price_kwd));
+    return prices.length ? Math.min(...prices) : Number.POSITIVE_INFINITY;
   };
 
-  useEffect(() => { saveStored("reelroom-watchlist", watchlist); }, [watchlist]);
-  useEffect(() => { saveStored("reelroom-cart", cart); }, [cart]);
-  useEffect(() => { saveStored("reelroom-orders", orders); }, [orders]);
+  const loadCatalog = useCallback(async (silent = false) => {
+    if (!silent) {
+      setCatalogStatus("loading");
+      setCatalogError("");
+    }
+    try {
+      const client = getSupabaseClient();
+      const [productResult, variantResult] = await Promise.all([
+        client.from("products").select("*").order("display_order", { ascending: true }).order("title", { ascending: true }),
+        client.from("product_variants").select("*").eq("available", true),
+      ]);
+      if (productResult.error) throw productResult.error;
+      if (variantResult.error) throw variantResult.error;
+      const productRows = (productResult.data ?? []) as ProductRecord[];
+      const variantRows = (variantResult.data ?? []) as ProductVariantRecord[];
+      if (!productRows.length) throw new Error("The REELROOM catalog is empty.");
+      setVariants(variantRows);
+      setMovies(productRows.map((product) => mapProductToMovie(product, variantRows)));
+      catalogFetchedAt.current = Date.now();
+      setCatalogStatus("ready");
+      setCatalogError("");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unable to load the REELROOM catalog.";
+      setCatalogError(message.includes("not configured")
+        ? "The Supabase connection is not configured. Check the app’s Supabase environment settings."
+        : "We couldn’t retrieve the film catalog. Check your connection and try again.");
+      setCatalogStatus("error");
+    }
+  }, []);
+
+  useEffect(() => { void loadCatalog(); }, [loadCatalog, catalogRetry]);
+  useEffect(() => {
+    const refreshOnFocus = () => {
+      if (document.visibilityState === "visible" && Date.now() - catalogFetchedAt.current > 60_000) {
+        void loadCatalog(true);
+      }
+    };
+    document.addEventListener("visibilitychange", refreshOnFocus);
+    return () => document.removeEventListener("visibilitychange", refreshOnFocus);
+  }, [loadCatalog]);
+
+  useEffect(() => {
+    let active = true;
+    let client: ReturnType<typeof getSupabaseClient>;
+    try {
+      client = getSupabaseClient();
+    } catch {
+      return;
+    }
+    const { data: { subscription } } = client.auth.onAuthStateChange((event, session) => {
+      if (!active) return;
+      const nextUser = session?.user ?? null;
+      const nextUserId = nextUser?.id ?? null;
+      if (currentUserIdRef.current !== nextUserId) {
+        currentUserIdRef.current = nextUserId;
+        setProfile(null);
+        setOrders([]);
+        setAccountDataHydratedFor(null);
+        setCartHydratedFor(null);
+        setAccountStateError("");
+        if (!nextUserId) {
+          setWatchlist(readStored("reelroom-watchlist", []));
+          setCart(readStored("reelroom-cart", []));
+          if (event === "SIGNED_OUT") {
+            try { localStorage.setItem("reelroom-device-id", crypto.randomUUID()); } catch { /* local migration is unavailable without browser storage */ }
+          }
+        }
+      }
+      setAuthUser(nextUser);
+      if (event === "PASSWORD_RECOVERY") {
+        setAuthMode("reset");
+        setAuthError("");
+        setAuthNotice("");
+        setView("auth");
+      }
+    });
+    void client.auth.getSession().then(({ data }) => {
+      if (active) setAuthUser(data.session?.user ?? null);
+    }).catch(() => {
+      if (active) setAuthError("Unable to check your saved sign-in session.");
+    });
+    return () => {
+      active = false;
+      subscription.unsubscribe();
+    };
+  }, []);
+
+  useEffect(() => { if (!authUser || catalogStatus !== "ready") return; 
+    let active = true;
+    const hydrateAccount = async () => {
+      setAccountStateError("");
+      try {
+        const client = getSupabaseClient();
+        const savedFavorites = readStored<unknown>("reelroom-watchlist", []);
+        const localFavorites = (Array.isArray(savedFavorites) ? savedFavorites : [])
+          .filter((id): id is string => typeof id === "string" && id.length > 0 && id.length < 160);
+        const savedCart = readStored<unknown>("reelroom-cart", []);
+        const localCart = (Array.isArray(savedCart) ? savedCart : []).filter((line): line is CartLine => {
+          if (!line || typeof line !== "object") return false;
+          const candidate = line as Partial<CartLine>;
+          return typeof candidate.movieId === "string"
+            && (candidate.experience === "Physical" || candidate.experience === "Digital")
+            && (candidate.mode === "Buy" || candidate.mode === "Rent")
+            && typeof candidate.option === "string";
+        }).map((line) => ({
+          ...line,
+          quantity: Number.isFinite(Number(line.quantity)) ? Math.max(1, Math.min(12, Math.floor(Number(line.quantity)))) : 1,
+        }));
+        let deviceId = localStorage.getItem("reelroom-device-id");
+        if (!deviceId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(deviceId)) {
+          deviceId = crypto.randomUUID();
+          localStorage.setItem("reelroom-device-id", deviceId);
+        }
+        const migrationCart = localCart.flatMap((line) => {
+          const variantId = toCartVariantId(line, variants);
+          return variantId ? [{ variant_id: variantId, quantity: Math.max(1, Math.min(12, line.quantity)) }] : [];
+        });
+        const { error: mergeError } = await client.rpc("merge_browser_data", {
+          p_device_id: deviceId,
+          p_favorite_ids: localFavorites,
+          p_cart_items: migrationCart,
+        });
+        if (mergeError) throw mergeError;
+
+        const unmigratedFavorites = localFavorites.filter((id) => !movies.some((movie) => movie.id === id));
+        const unmigratedCart = localCart.filter((line) => !toCartVariantId(line, variants));
+        saveStored("reelroom-watchlist", unmigratedFavorites);
+        saveStored("reelroom-cart", unmigratedCart);
+        const [profileResult, favoritesResult, cartResult, ordersResult] = await Promise.all([
+          client.from("profiles").select("id, display_name").eq("id", authUser.id).maybeSingle(),
+          client.from("favorites").select("product_id").eq("user_id", authUser.id),
+          client.from("cart_items").select("variant_id, quantity").eq("user_id", authUser.id),
+          client.from("orders").select("*").eq("user_id", authUser.id).order("created_at", { ascending: false }),
+        ]);
+        if (profileResult.error) throw profileResult.error;
+        if (favoritesResult.error) throw favoritesResult.error;
+        if (cartResult.error) throw cartResult.error;
+        if (ordersResult.error) throw ordersResult.error;
+
+        const accountOrders = (ordersResult.data ?? []) as AccountOrderRecord[];
+        let accountItems: AccountOrderItemRecord[] = [];
+        if (accountOrders.length) {
+          const { data, error } = await client.from("order_items").select("*").in("order_id", accountOrders.map((order) => order.id));
+          if (error) throw error;
+          accountItems = (data ?? []) as AccountOrderItemRecord[];
+        }
+        if (!active) return;
+        setProfile(profileResult.data as ProfileRecord | null);
+        setWatchlist((favoritesResult.data ?? []).map((row: { product_id: string }) => row.product_id));
+        setOrders(accountOrders.map((order) => formatAccountOrder(order, accountItems)));
+        const loadedCart = (cartResult.data ?? []).flatMap((row: { variant_id: string; quantity: number }) => {
+          const variant = variants.find((candidate) => candidate.id === row.variant_id);
+          const movie = variant && movies.find((candidate) => candidate.id === variant.product_id);
+          return variant && movie ? [cartLineFromVariant(movie, variant, row.quantity)] : [];
+        });
+        setCart(loadedCart);
+        setCartHydratedFor(authUser.id);
+        setAccountDataHydratedFor(authUser.id);
+        if (localFavorites.length || localCart.length) {
+          setToast(unmigratedFavorites.length || unmigratedCart.length
+            ? "Available saved items were merged; unavailable ones remain on this device"
+            : "Your saved watchlist and cart were merged into your account");
+        }
+      } catch (error) {
+        if (!active) return;
+        setAccountStateError("Account data could not be synced. Retry to reload your saved watchlist, cart, and orders.");
+        setAccountDataHydratedFor(null);
+      }
+    };
+    void hydrateAccount();
+    return () => { active = false; };
+  }, [authUser?.id, catalogStatus, catalogRetry]);
+
+  useEffect(() => {
+    if (!authUser || cartHydratedFor !== authUser.id) return;
+    let cancelled = false;
+    const saveAccountCart = async () => {
+      try {
+        const client = getSupabaseClient();
+        const rows = cart.flatMap((line) => {
+          const variantId = toCartVariantId(line, variants);
+          return variantId ? [{ user_id: authUser.id, variant_id: variantId, quantity: Math.max(1, Math.min(12, line.quantity)) }] : [];
+        });
+        if (rows.length) {
+          const { error } = await client.from("cart_items").upsert(rows, { onConflict: "user_id,variant_id" });
+          if (error) throw error;
+        }
+        const currentVariantIds = rows.map((row) => row.variant_id);
+        let deleteQuery = client.from("cart_items").delete().eq("user_id", authUser.id);
+        if (currentVariantIds.length) deleteQuery = deleteQuery.not("variant_id", "in", `(${currentVariantIds.join(",")})`);
+        const { error: deleteError } = await deleteQuery;
+        if (deleteError) throw deleteError;
+      } catch (error) {
+        if (!cancelled) setAccountStateError("Your cart could not be synced to your account. Check your connection and try again.");
+      }
+    };
+    const timeout = window.setTimeout(() => { void saveAccountCart(); }, 250);
+    return () => { cancelled = true; window.clearTimeout(timeout); };
+  }, [authUser?.id, cart, cartHydratedFor, variants]);
+
+  useEffect(() => {
+    if (!authUser) {
+      saveStored("reelroom-cart", cart);
+      return;
+    }
+  }, [authUser?.id, cart]);
   useEffect(() => { saveStored("reelroom-manual-library", manualLibraryIds); }, [manualLibraryIds]);
   useEffect(() => {
-    if (!mobileOpen) return;
+    if (!mobileOpen && !accountMenuOpen) return;
     const closeOnOutsidePointer = (event: PointerEvent) => {
-      if (!navContainerRef.current?.contains(event.target as Node)) setMobileOpen(false);
+      if (!navContainerRef.current?.contains(event.target as Node)) {
+        setMobileOpen(false);
+        setAccountMenuOpen(false);
+      }
     };
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
       setMobileOpen(false);
-      navContainerRef.current?.querySelector<HTMLButtonElement>(".rr-menu-toggle")?.focus();
+      setAccountMenuOpen(false);
+      navContainerRef.current?.querySelector<HTMLButtonElement>(".rr-account-toggle")?.focus()
+        ?? navContainerRef.current?.querySelector<HTMLButtonElement>(".rr-menu-toggle")?.focus();
     };
     document.addEventListener("pointerdown", closeOnOutsidePointer);
     document.addEventListener("keydown", closeOnEscape);
@@ -1102,12 +1454,12 @@ export function Reelroom() {
       document.removeEventListener("pointerdown", closeOnOutsidePointer);
       document.removeEventListener("keydown", closeOnEscape);
     };
-  }, [mobileOpen]);
+  }, [mobileOpen, accountMenuOpen]);
   useEffect(() => {
     if (view !== "details") return;
     let active = true;
     setCinemetaLookup({ movieId: selectedMovie.id, status: "loading", metadata: null });
-    fetchCinemetaMovie(selectedMovie.title, selectedMovie.year)
+    fetchCinemetaMovie(selectedMovie.title, selectedMovie.year > 0 ? selectedMovie.year : undefined)
       .then((metadata) => {
         if (!active) return;
         setCinemetaLookup({
@@ -1193,9 +1545,18 @@ export function Reelroom() {
     if (next !== "details") setCollection("All films");
     setView(next);
     setMobileOpen(false);
+    setAccountMenuOpen(false);
     setAdded(false);
     if (next === "checkout") { setCheckoutStep(1); setCheckoutErrors({}); setConfirmedOrder(null); }
     window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+  const openAuth = (mode: "login" | "signup" | "forgot", returnTo: View = view, notice = "") => {
+    setAuthReturnView(returnTo);
+    setAuthMode(mode);
+    setAuthError("");
+    setAuthNotice(notice);
+    setAuthPasswordVisible(false);
+    navigate("auth");
   };
   const dismissIntro = () => {
     setIntroClosing(true);
@@ -1207,15 +1568,30 @@ export function Reelroom() {
     navigate("browse");
     setCollection(next);
   };
-  const toggleFavorite = (id: string) => {
+  const toggleFavorite = async (id: string) => {
+    if (!authUser) {
+      openAuth("login", view, "Sign in or create an account to save films to your watchlist.");
+      return;
+    }
     const exists = watchlist.includes(id);
-    setWatchlist((current) => exists ? current.filter((savedId) => savedId !== id) : [...current, id]);
-    setToast(exists ? "Removed from your watchlist" : "Saved to your watchlist");
+    const previous = watchlist;
+    const updated = exists ? watchlist.filter((savedId) => savedId !== id) : [...watchlist, id];
+    setWatchlist(updated);
+    try {
+      const client = getSupabaseClient();
+      const response = exists
+        ? await client.from("favorites").delete().eq("user_id", authUser.id).eq("product_id", id)
+        : await client.from("favorites").insert({ user_id: authUser.id, product_id: id });
+      if (response.error) throw response.error;
+      setToast(exists ? "Removed from your watchlist" : "Saved to your watchlist");
+    } catch {
+      setWatchlist(previous);
+      setToast("Your watchlist could not be updated. Please try again.");
+    }
   };
-  const addToWatchlistFromPlanner = (id: string) => {
+  const addToWatchlistFromPlanner = async (id: string) => {
     if (watchlist.includes(id)) return;
-    setWatchlist((current) => current.includes(id) ? current : [...current, id]);
-    setToast("Saved to your watchlist");
+    await toggleFavorite(id);
   };
   const isMovieInLibrary = (id: string) => manualLibraryIds.includes(id) || orderedMovieIds.has(id);
   const isLibraryOrder = (id: string) => orderedMovieIds.has(id);
@@ -1237,17 +1613,25 @@ export function Reelroom() {
   };
   const openDetails = (movie: Movie) => {
     setSelectedMovieId(movie.id);
-    setExperience("Physical"); setBuyMode("Buy"); setSelectedOption("Blu-ray"); setQuantity(1);
+    const physicalOptions = optionsForMovie(movie, "Physical", "Buy");
+    const digitalOptions = optionsForMovie(movie, "Digital", "Buy");
+    const nextExperience = physicalOptions.length ? "Physical" : "Digital";
+    const nextOptions = nextExperience === "Physical" ? physicalOptions : digitalOptions;
+    setExperience(nextExperience);
+    setBuyMode("Buy");
+    setSelectedOption(nextOptions.includes("Blu-ray") ? "Blu-ray" : nextOptions[0] ?? "");
+    setQuantity(1);
     navigate("details");
   };
   const filteredMovies = useMemo(() => {
-    let result = [...MOVIES];
-    if (collection === "Top 100") result = result.slice(0, 100);
-    if (view === "digital") result = result.filter((movie) => movie.platforms.length);
+    let result = [...movies];
+    if (collection === "Top 100") result = result.filter((movie) => movie.collections?.includes("top_100"));
+    if (view === "digital") result = result.filter((movie) => movie.platforms.length > 0);
+    if (view === "physical") result = result.filter((movie) => movie.physicalAvailable);
     if (collection === "Digital only") result = result.filter((movie) => movie.platforms.length > 0);
     if (collection === "Physical only") result = result.filter((movie) => movie.platforms.length === 0);
-    if (collection === "Academy Award films") result = result.filter((movie) => ACADEMY_AWARD_IDS.has(movie.id));
-    if (collection === "Animated movies") result = result.filter(isAnimatedFilm);
+    if (collection === "Academy Award films") result = result.filter((movie) => movie.collections?.includes("academy_award"));
+    if (collection === "Animated movies") result = result.filter((movie) => movie.isAnimated);
     if (genre !== "All genres") result = result.filter((movie) => (movie.genres ?? [movie.genre]).includes(genre));
     if (decade !== "All decades") {
       const from = Number(decade.slice(0, 4));
@@ -1259,12 +1643,14 @@ export function Reelroom() {
     }
     if (format !== "Any format") result = result.filter((movie) => {
       if (format === "Digital") return movie.platforms.length > 0;
-      if (format === "4K Ultra HD") return FOUR_K_DEMO_TITLES.has(movie.id);
-      return format === "DVD" || format === "Blu-ray";
+      return movie.variants?.some((variant) => variant.available && variant.media_type === "physical" && variant.format === format) ?? false;
     });
     if (modeFilter === "Digital") result = result.filter((movie) => movie.platforms.length > 0);
-    if (modeFilter === "Physical") result = result.filter((movie) => Boolean(movie.id));
-    if (modeFilter === "Rent" || modeFilter === "Buy") result = result.filter((movie) => Boolean(movie.id));
+    if (modeFilter === "Physical") result = result.filter((movie) => movie.physicalAvailable);
+    if (modeFilter === "Rent" || modeFilter === "Buy") {
+      const transaction = modeFilter.toLowerCase();
+      result = result.filter((movie) => movie.variants?.some((variant) => variant.available && variant.transaction_type === transaction));
+    }
     if (maxPrice !== "Any price") {
       const cap = Number(maxPrice);
       result = result.filter((movie) => catalogPrice(movie) <= cap);
@@ -1274,60 +1660,235 @@ export function Reelroom() {
     if (sort === "Oldest") result.sort((a, b) => a.year - b.year);
     if (sort === "Price: low to high") result.sort((a, b) => catalogPrice(a) - catalogPrice(b) || a.title.localeCompare(b.title));
     return result;
-  }, [view, collection, genre, decade, search, format, modeFilter, maxPrice, sort]);
+  }, [movies, view, collection, genre, decade, search, format, modeFilter, maxPrice, sort]);
 
-  const itemPrice = experience === "Physical"
-    ? PHYSICAL_PRICE[buyMode][selectedOption]
-    : Number((({ "Apple TV": 2.5, "Amazon Prime Video": 2.9, "Google TV": 2.3, "YouTube Movies": 2.2 } as Record<string, number>)[selectedOption] ?? 2.5) * (buyMode === "Buy" ? 3.2 : 1)).toFixed(3);
+  const selectedVariant = findMovieVariant(selectedMovie, experience, buyMode, selectedOption);
+  const itemPrice = selectedVariant ? Number(selectedVariant.price_kwd) : 0;
   const rental = experience === "Physical" ? "7-day rental · return by the date shown at checkout" : "30-day viewing window · 48 hours to finish once started";
-  const setMode = (mode: "Buy" | "Rent") => { setBuyMode(mode); setAdded(false); };
-  const setExperienceMode = (kind: "Physical" | "Digital") => {
-    if (kind === "Digital" && selectedMovie.platforms.length === 0) return;
-    setExperience(kind); setSelectedOption(kind === "Physical" ? "Blu-ray" : (selectedMovie.platforms[0] ?? "Apple TV")); setAdded(false);
+  const setMode = (mode: "Buy" | "Rent") => {
+    const nextOptions = optionsForMovie(selectedMovie, experience, mode);
+    setBuyMode(mode);
+    if (!nextOptions.includes(selectedOption)) setSelectedOption(nextOptions[0] ?? "");
+    setAdded(false);
   };
-  const addToCart = () => {
-    if (experience === "Digital" && selectedMovie.platforms.length === 0) {
-      setToast("This title has no digital listing in the demo");
+  const setExperienceMode = (kind: "Physical" | "Digital") => {
+    const nextOptions = optionsForMovie(selectedMovie, kind, buyMode);
+    if (!nextOptions.length) {
+      setToast(kind === "Digital" ? "This title has no digital options in the catalog" : "No physical options are listed for this title");
       return;
     }
-    const line: CartLine = {
-      key: `${selectedMovie.id}-${experience}-${buyMode}-${selectedOption}-${Date.now()}`,
-      movieId: selectedMovie.id, experience, mode: buyMode, option: selectedOption,
-      price: Number(itemPrice), quantity: experience === "Physical" && buyMode === "Buy" ? quantity : 1,
-      rental: buyMode === "Rent"
-        ? experience === "Physical"
-          ? `7-day rental · return by ${new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toLocaleDateString("en-KW", { day: "numeric", month: "short", year: "numeric" })}`
-          : rental
-        : "Permanent collection / demo ownership",
-    };
-    setCart((current) => [...current, line]);
+    setExperience(kind);
+    setSelectedOption(nextOptions.includes(kind === "Physical" ? "Blu-ray" : selectedOption) ? (kind === "Physical" ? "Blu-ray" : selectedOption) : nextOptions[0]);
+    setAdded(false);
+  };
+  const addToCart = () => {
+    if (!selectedVariant) {
+      setToast("That option is unavailable. Choose another format or platform.");
+      return;
+    }
+    const line = cartLineFromVariant(selectedMovie, selectedVariant, experience === "Physical" && buyMode === "Buy" ? quantity : 1);
+    setCart((current) => {
+      const existing = current.find((item) => item.variantId === selectedVariant.id);
+      if (!existing) return [...current, line];
+      if (experience === "Physical" && buyMode === "Buy") {
+        return current.map((item) => item.variantId === selectedVariant.id
+          ? { ...item, quantity: Math.min(12, item.quantity + quantity) }
+          : item);
+      }
+      return current;
+    });
     setAdded(true); setToast(`${selectedMovie.title} added to your cart`);
   };
-  const updateQuantity = (key: string, value: number) => setCart((current) => current.map((item) => item.key === key ? { ...item, quantity: Math.max(1, value) } : item));
+  const updateQuantity = (key: string, value: number) => setCart((current) => current.map((item) => item.key === key ? { ...item, quantity: Math.max(1, Math.min(12, value)) } : item));
   const removeCartItem = (key: string) => { setCart((current) => current.filter((item) => item.key !== key)); setToast("Item removed from cart"); };
   const resetFilters = () => { setCollection("All films"); setSearch(""); setGenre("All genres"); setDecade("All decades"); setFormat("Any format"); setModeFilter("Any mode"); setMaxPrice("Any price"); setSort("Featured"); };
 
   const validateCheckout = () => {
     const errors: Record<string, string> = {};
-    if (!checkoutData.name.trim()) errors.name = "Please enter your name.";
+    if (checkoutData.name.trim().length < 2) errors.name = "Please enter your name.";
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(checkoutData.email)) errors.email = "Enter a valid email address.";
-    if (!checkoutData.phone.trim()) errors.phone = "Please add a contact number.";
+    if (checkoutData.phone.trim().length < 5) errors.phone = "Please add a valid contact number.";
     if (cart.some((item) => item.experience === "Physical") && checkoutData.fulfillment === "Delivery" && checkoutData.address.trim().length < 8) errors.address = "Add a complete delivery address.";
     setCheckoutErrors(errors);
     return Object.keys(errors).length === 0;
   };
-  const submitOrder = (event: FormEvent) => {
+  const submitOrder = async (event: FormEvent) => {
     event.preventDefault();
     if (!validateCheckout()) return;
-    const order: DemoOrder = {
-      id: `RR-${new Date().getFullYear()}-${Math.random().toString(36).slice(2, 7).toUpperCase()}`,
-      date: new Date().toLocaleDateString("en-KW", { day: "numeric", month: "short", year: "numeric" }),
-      customer: checkoutData.name, total: cartTotal, items: [...cart],
-      fulfillment: cart.some((item) => item.experience === "Physical") ? checkoutData.fulfillment : "Digital platform preference",
-    };
-    setOrders((current) => [order, ...current]);
-    setConfirmedOrder(order); setCart([]); setCheckoutStep(3); setCheckoutErrors({});
+    if (!authUser) {
+      openAuth("login", "checkout", "Sign in to save this demo order to your account.");
+      return;
+    }
+    setOrderSubmitting(true);
+    setAccountStateError("");
+    try {
+      const items = cart.flatMap((line) => {
+        const variantId = toCartVariantId(line, variants);
+        return variantId ? [{ variant_id: variantId, quantity: Math.max(1, Math.min(12, line.quantity)) }] : [];
+      });
+      if (items.length !== cart.length) throw new Error("One or more cart options are no longer available. Review your cart and try again.");
+      const client = getSupabaseClient();
+      const { data, error } = await client.rpc("create_demo_order", {
+        p_items: items,
+        p_contact: {
+          name: checkoutData.name,
+          email: checkoutData.email,
+          phone: checkoutData.phone,
+          fulfillment: checkoutData.fulfillment,
+          address: checkoutData.address,
+          note: checkoutData.note,
+        },
+      });
+      if (error) throw error;
+      const result = data as (AccountOrderRecord & { items?: AccountOrderItemRecord[] }) | null;
+      if (!result?.id || !result.order_number) throw new Error("The order could not be confirmed. Please try again.");
+      if (!Array.isArray(result.items)) throw new Error("The order was saved, but its confirmation details could not be loaded. Check My Orders before retrying.");
+      const order = formatAccountOrder(result, result.items);
+      order.total = Number(result.total_kwd ?? order.total);
+      setOrders((current) => [order, ...current.filter((existing) => existing.databaseId !== order.databaseId)]);
+      setConfirmedOrder(order);
+      setCart([]);
+      setCheckoutStep(3);
+      setCheckoutErrors({});
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "";
+      setAccountStateError(/contact details are incomplete/i.test(message)
+        ? "Please check your name, email, and phone number."
+        : /delivery address is required/i.test(message)
+          ? "Enter a complete delivery address before confirming this order."
+          : /unavailable|cart quantities/i.test(message)
+            ? "One or more options changed. Review your cart and try again."
+          : /order was saved/i.test(message)
+            ? "The order was saved, but confirmation details could not be loaded. Check My Orders before retrying."
+            : "The demo order could not be saved. Please check the details and try again.");
+    } finally {
+      setOrderSubmitting(false);
+    }
   };
+  const submitAuth = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    const email = String(form.get("email") ?? "").trim();
+    const password = String(form.get("password") ?? "");
+    const confirmPassword = String(form.get("confirmPassword") ?? "");
+    const displayName = String(form.get("displayName") ?? "").trim();
+    setAuthError("");
+    setAuthNotice("");
+    if (authMode !== "reset" && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setAuthError("Enter a valid email address.");
+      return;
+    }
+    if (authMode === "signup" && displayName.length < 2) {
+      setAuthError("Your display name must be at least 2 characters.");
+      return;
+    }
+    if (authMode === "signup" || authMode === "reset") {
+      if (password.length < 8) {
+        setAuthError("Use a password with at least 8 characters.");
+        return;
+      }
+      if (password !== confirmPassword) {
+        setAuthError("The passwords do not match.");
+        return;
+      }
+    }
+    setAuthBusy(true);
+    try {
+      const client = getSupabaseClient();
+      if (authMode === "signup") {
+        const { data, error } = await client.auth.signUp({
+          email,
+          password,
+          options: {
+            data: { display_name: displayName },
+            emailRedirectTo: `${window.location.origin}${import.meta.env.BASE_URL}`,
+          },
+        });
+        if (error) throw error;
+        if (data.session) {
+          setAuthNotice("Your account is ready.");
+          navigate(authReturnView);
+        } else {
+          setAuthMode("verify");
+          setAuthNotice(`Check ${email} for the confirmation link to finish creating your account.`);
+        }
+      } else if (authMode === "login") {
+        const { error } = await client.auth.signInWithPassword({ email, password });
+        if (error) throw error;
+        setAuthNotice("You’re signed in.");
+        navigate(authReturnView);
+      } else if (authMode === "forgot") {
+        const { error } = await client.auth.resetPasswordForEmail(email, {
+          redirectTo: `${window.location.origin}${import.meta.env.BASE_URL}`,
+        });
+        if (error) throw error;
+        setAuthNotice("If an account uses that address, password reset instructions will arrive by email.");
+      } else if (authMode === "reset") {
+        const { error } = await client.auth.updateUser({ password });
+        if (error) throw error;
+        setAuthMode("login");
+        setAuthNotice("Your password has been updated. Sign in with your new password.");
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Sign-in could not be completed.";
+      setAuthError(/invalid login credentials/i.test(message)
+        ? "Email or password is incorrect."
+        : /email address.*invalid|invalid email/i.test(message)
+          ? "That email address was rejected. Check it and try again."
+        : /already registered|already been registered/i.test(message)
+          ? "An account with this email already exists. Try signing in."
+          : /email not confirmed/i.test(message)
+            ? "Please confirm your email before signing in."
+            : message);
+    } finally {
+      setAuthBusy(false);
+    }
+  };
+  const handleSignOut = async () => {
+    try {
+      const { error } = await getSupabaseClient().auth.signOut();
+      if (error) throw error;
+      setToast("You’re signed out");
+      navigate("home");
+    } catch {
+      setToast("Unable to sign out. Please try again.");
+    }
+  };
+  const saveProfile = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!authUser) return;
+    const form = new FormData(event.currentTarget);
+    const displayName = String(form.get("displayName") ?? "").trim();
+    if (displayName.length < 2 || displayName.length > 80) {
+      setAccountStateError("Display name must be between 2 and 80 characters.");
+      return;
+    }
+    setProfileSaving(true);
+    setAccountStateError("");
+    try {
+      const { data, error } = await getSupabaseClient()
+        .from("profiles")
+        .update({ display_name: displayName })
+        .eq("id", authUser.id)
+        .select("id, display_name")
+        .single();
+      if (error) throw error;
+      setProfile(data as ProfileRecord);
+      setToast("Profile saved");
+    } catch {
+      setAccountStateError("Your profile could not be saved. Please try again.");
+    } finally {
+      setProfileSaving(false);
+    }
+  };
+  useEffect(() => {
+    if (!authUser) return;
+    setCheckoutData((current) => ({
+      ...current,
+      name: current.name || profile?.display_name || String(authUser.user_metadata?.display_name ?? ""),
+      email: current.email || authUser.email || "",
+    }));
+  }, [authUser?.id, authUser?.email, authUser?.user_metadata?.display_name, profile?.display_name]);
   const submitContact = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const data = new FormData(event.currentTarget);
@@ -1356,10 +1917,30 @@ export function Reelroom() {
             {links.map((link) => <button key={link.target} className={`rr-navlink ${view === link.target ? "active" : ""}`} onClick={() => navigate(link.target)}>{link.label}</button>)}
             <button className={`rr-navlink ${view === "watchlist" ? "active" : ""}`} onClick={() => navigate("watchlist")}>Watchlist{watchlist.length > 0 ? ` (${watchlist.length})` : ""}</button>
             <button className="rr-navlink" onClick={() => navigate("library")}>My Library</button>
+            {authUser && <button className={`rr-navlink ${view === "orders" ? "active" : ""}`} onClick={() => navigate("orders")}>Orders</button>}
+            {!authUser && <button className="rr-navlink" onClick={() => openAuth("login")}>Sign in</button>}
+            {!authUser && <button className="rr-navlink rr-mobile-signup" onClick={() => openAuth("signup")}>Create account</button>}
           </nav>
           <div className="rr-actions">
             <button className="rr-icon-btn rr-search-short" aria-label="Search movies" onClick={() => { navigate("browse"); setTimeout(() => document.getElementById("catalog-search")?.focus(), 50); }}><Search size={18}/></button>
             <button className="rr-icon-btn" aria-label={`Shopping cart, ${cartCount} items`} onClick={() => navigate("cart")}><ShoppingCart size={18}/>{cartCount > 0 && <span className="rr-count">{cartCount}</span>}</button>
+            {authUser ? <div className="rr-account-control">
+              <button
+                className="rr-account-toggle"
+                type="button"
+                aria-haspopup="menu"
+                aria-expanded={accountMenuOpen}
+                onClick={() => setAccountMenuOpen((open) => !open)}
+              >
+                {profile?.display_name || authUser.user_metadata?.display_name || authUser.email?.split("@")[0] || "Account"}
+              </button>
+              {accountMenuOpen && <div className="rr-account-menu" role="menu">
+                <button role="menuitem" onClick={() => navigate("watchlist")}>Watchlist</button>
+                <button role="menuitem" onClick={() => navigate("orders")}>Orders</button>
+                <button role="menuitem" onClick={() => navigate("account")}>Profile</button>
+                <button role="menuitem" onClick={handleSignOut}>Log out</button>
+              </div>}
+            </div> : <button className="rr-button secondary small rr-signup-link" onClick={() => openAuth("signup")}>Create account</button>}
             <button className="rr-icon-btn rr-menu-toggle" aria-label={mobileOpen ? "Close menu" : "Open menu"} aria-expanded={mobileOpen} aria-controls="reelroom-main-navigation" onClick={() => setMobileOpen((open) => !open)}>{mobileOpen ? <X size={20}/> : <Menu size={20}/>}</button>
           </div>
         </div>
@@ -1436,7 +2017,15 @@ export function Reelroom() {
     });
   };
 
-  const renderHome = () => <main>
+  const renderHome = () => {
+    const recentFilms = movies.filter((movie) => movie.collections?.includes("recent"));
+    const criterionFilms = movies.filter((movie) => movie.collections?.includes("criterion_selection"));
+    const digitalFilms = movies.filter((movie) => movie.platforms.length > 0);
+    const physicalOnlyFilms = movies.filter((movie) => movie.physicalAvailable && movie.platforms.length === 0);
+    const top100Films = movies.filter((movie) => movie.collections?.includes("top_100"));
+    const academyFilms = movies.filter((movie) => movie.collections?.includes("academy_award"));
+    const animatedFilms = movies.filter((movie) => movie.isAnimated);
+    return <main>
     <section className="rr-hero" onPointerMove={handleHeroPointerMove} onPointerLeave={handleHeroPointerLeave}>
       <SparklesField />
       <div className="rr-hero-still-stage" aria-hidden="true">
@@ -1462,7 +2051,7 @@ export function Reelroom() {
     <section className="rr-section">
       <div className="rr-wrap">
         <div className="rr-section-head"><div><span className="rr-eyebrow">Fresh off the reel</span><h2 className="rr-section-title rr-display">Recently added.</h2></div><button className="rr-text-link" onClick={() => navigate("browse")}>Browse all films <ArrowRight size={14}/></button></div>
-        {rotatingMovieGrid([...RECENT_MOVIES, MOVIES[4]], "six", "Recently added films")}
+        {rotatingMovieGrid(recentFilms, "six", "Recently added films")}
       </div>
     </section>
     <section className="rr-section rr-home-collection">
@@ -1475,14 +2064,14 @@ export function Reelroom() {
           </div>
           <button className="rr-text-link" onClick={() => navigate("browse")}>Browse all films <ArrowRight size={14}/></button>
         </div>
-        {rotatingMovieGrid(CRITERION_SELECTION_MOVIES, "four", "Criterion selection films")}
+        {rotatingMovieGrid(criterionFilms, "four", "Criterion selection films")}
       </div>
     </section>
-    {homeCollectionSection("Digital only", "Platform picks", "Digital only.", "Compare illustrative platform options. The same title may also have a disc edition; availability is not retailer-verified.", MOVIES.filter((movie) => movie.platforms.length > 0))}
-    {homeCollectionSection("Physical only", "The disc shelf", "Physical only.", `${MOVIES.filter((movie) => movie.platforms.length === 0).length} titles are listed as physical-only in this demo. Regional stock and release formats are not verified.`, MOVIES.filter((movie) => movie.platforms.length === 0))}
-    {homeCollectionSection("Top 100", "A growing shortlist", "The Top 100.", "A dedicated 100-film shelf within an archive that keeps growing.", MOVIES.slice(0, 100))}
-    {homeCollectionSection("Academy Award films", "The gold standard", "Academy Award films.", "A collection of Academy Award-winning pictures, performances, writing, and craft.", MOVIES.filter((movie) => ACADEMY_AWARD_IDS.has(movie.id)))}
-    {homeCollectionSection("Animated movies", "The animation archive", "Animated movies.", `${MOVIES.filter(isAnimatedFilm).length} animated films, from hand-drawn landmarks to modern adventures.`, MOVIES.filter(isAnimatedFilm))}
+    {homeCollectionSection("Digital only", "Platform picks", "Digital only.", "Compare illustrative platform options. The same title may also have a disc edition; availability is not retailer-verified.", digitalFilms)}
+    {homeCollectionSection("Physical only", "The disc shelf", "Physical only.", `${physicalOnlyFilms.length} titles are listed as physical-only in this demo. Regional stock and release formats are not verified.`, physicalOnlyFilms)}
+    {homeCollectionSection("Top 100", "A growing shortlist", "The Top 100.", "A dedicated 100-film shelf within an archive that keeps growing.", top100Films)}
+    {homeCollectionSection("Academy Award films", "The gold standard", "Academy Award films.", "A collection of Academy Award-winning pictures, performances, writing, and craft.", academyFilms)}
+    {homeCollectionSection("Animated movies", "The animation archive", "Animated movies.", `${animatedFilms.length} animated films, from hand-drawn landmarks to modern adventures.`, animatedFilms)}
     <section className="rr-section compact">
       <div className="rr-wrap">
         <div className="rr-section-head"><div><span className="rr-eyebrow">Choose your experience</span><h2 className="rr-section-title rr-display">Cinema, your way.</h2></div></div>
@@ -1505,6 +2094,7 @@ export function Reelroom() {
     <section className="rr-section compact"><div className="rr-wrap"><div className="rr-promo"><div><span className="rr-eyebrow">The second look</span><h2>Great films deserve a second viewing.</h2></div><button className="rr-button" onClick={() => navigate("browse")}>Find your film <ArrowRight size={15}/></button></div></div></section>
     <section className="rr-section compact"><div className="rr-wrap"><div className="rr-section-head"><div><span className="rr-eyebrow">A short reel</span><h2 className="rr-section-title rr-display">Twelve seconds. Your next movie night.</h2></div><button className="rr-text-link" onClick={() => { navigate("ad"); setAdSecond(0); setAdPlaying(true); setAdKey((key) => key + 1); }}>Watch the REELROOM ad <Play size={13}/></button></div><button className="rr-button secondary small" onClick={() => { navigate("ad"); setAdSecond(0); setAdPlaying(true); setAdKey((key) => key + 1); }}>Play 12-second preview <Play size={13}/></button></div></section>
   </main>;
+  };
 
   const renderCatalog = () => {
     const pageTitle = collection !== "All films" ? collection : view === "physical" ? "Physical cinema" : view === "digital" ? "Digital cinema" : view === "watchlist" ? "Your watchlist" : "The film archive";
@@ -1512,15 +2102,15 @@ export function Reelroom() {
     const collectionCopy: Record<Collection, string> = {
       "All films": "A considered collection across genres, decades, and the many ways to watch.",
       "Digital only": "Titles with example digital platform options. Digital access and current availability are not verified.",
-      "Physical only": `${MOVIES.filter((movie) => movie.platforms.length === 0).length} titles are listed on disc in this demonstration catalog; no digital options are represented here.`,
+      "Physical only": `${movies.filter((movie) => movie.physicalAvailable && movie.platforms.length === 0).length} titles are listed on disc in this demonstration catalog; no digital options are represented here.`,
       "Top 100": "A dedicated 100-film shelf within an archive that keeps growing.",
       "Academy Award films": "Films with Academy Award wins across picture, performance, writing, and craft.",
-      "Animated movies": `${MOVIES.filter(isAnimatedFilm).length} animated films across studios, eras, and styles.`,
+      "Animated movies": `${movies.filter((movie) => movie.isAnimated).length} animated films across studios, eras, and styles.`,
     };
-    const pageDescription = collection !== "All films" ? collectionCopy[collection] : view === "physical" ? "Find a film for the shelf, the cinema room, or a good old-fashioned movie night. Availability is demonstration data." : view === "digital" ? "Compare example digital options by platform. No viewing rights or third-party purchases are provided here." : view === "watchlist" ? "A personal shortlist of films worth coming back to." : collectionCopy["All films"];
+    const pageDescription = collection !== "All films" ? collectionCopy[collection] : view === "physical" ? "Find a film for the shelf, the cinema room, or a good old-fashioned movie night. Availability is demonstration data." : view === "digital" ? "Compare example digital options by platform. No viewing rights or third-party purchases are provided here." : view === "watchlist" ? authUser ? "Your account watchlist, saved across devices." : "Sign in to save films to an account watchlist. Earlier browser-saved titles remain available here until merged." : collectionCopy["All films"];
     return <main className="rr-wrap">
       <div className="rr-page-head"><span className="rr-eyebrow">{view === "watchlist" ? "Saved for later" : "Curated cinema archive"}</span><h1>{pageTitle}</h1><p>{pageDescription}</p></div>
-      {view === "watchlist" ? <section className="rr-section compact">{watchlist.length === 0 ? <div className="rr-empty"><Heart size={25}/><h2>Your next favorite belongs here.</h2><p>Save films while browsing and they will wait right here for you.</p><button className="rr-button" onClick={() => navigate("browse")}>Explore movies <ArrowRight size={14}/></button></div> : movieGrid(list, "four")}</section> : <>
+      {view === "watchlist" ? <section className="rr-section compact">{watchlist.length === 0 ? <div className="rr-empty"><Heart size={25}/><h2>Your next favorite belongs here.</h2><p>{authUser ? "Save films while browsing and they will wait right here for you." : "Sign in or create an account to keep a watchlist across devices."}</p>{authUser ? <button className="rr-button" onClick={() => navigate("browse")}>Explore movies <ArrowRight size={14}/></button> : <button className="rr-button" onClick={() => openAuth("login", "watchlist")}>Sign in <ArrowRight size={14}/></button>}</div> : movieGrid(list, "four")}</section> : <>
         <div className="rr-category-tabs" role="tablist" aria-label="Movie collections">
           {COLLECTIONS.map((name) => <button type="button" role="tab" aria-selected={collection === name} className={`rr-category-tab ${collection === name ? "active" : ""}`} key={name} onClick={() => setCollection(name)}>{name}</button>)}
         </div>
@@ -1535,12 +2125,12 @@ export function Reelroom() {
           <label className="rr-filter"><span className="rr-filter-label">Experience</span><select className="rr-select" value={modeFilter} onChange={(event) => setModeFilter(event.target.value)}><option>Any mode</option><option>Buy</option><option>Rent</option><option>Physical</option><option>Digital</option></select></label>
           <label className="rr-filter"><span className="rr-filter-label">Starting price</span><select className="rr-select" value={maxPrice} onChange={(event) => setMaxPrice(event.target.value)}><option>Any price</option><option value="2">Under 2 KWD</option><option value="4">Under 4 KWD</option><option value="7">Under 7 KWD</option><option value="10">Under 10 KWD</option></select></label>
         </div>
-        <div className="rr-results-line"><span>{list.length} films shown · {MOVIES.length} in the full archive</span><button className="rr-text-link" onClick={resetFilters}>Clear filters <RotateCcw size={12}/></button></div>
+        <div className="rr-results-line"><span>{list.length} films shown · {movies.length} in the full archive</span><button className="rr-text-link" onClick={resetFilters}>Clear filters <RotateCcw size={12}/></button></div>
         {movieGrid(list, "six")}
       </>}
        <div style={{ padding: "30px 0 55px" }}>
          <p className="rr-demo-note">Catalog availability, format options, platform listings, and every KWD amount are illustrative demonstration data—not verified retailer inventory or streaming rights.</p>
-         <details className="rr-poster-credits"><summary>Poster sources &amp; image rights</summary><p>Film poster artwork is shown for identification and belongs to its respective rights holders. Sources link to the film entries where each image was found.</p><div>{MOVIES.map((movie) => <a key={movie.id} href={POSTER_SOURCES[movie.id]} target="_blank" rel="noopener noreferrer">{movie.title}</a>)}</div></details>
+          <details className="rr-poster-credits"><summary>Poster sources &amp; image rights</summary><p>Film poster artwork is shown for identification and belongs to its respective rights holders. Sources link to the film entries where each image was found.</p><div>{movies.filter((movie) => movie.sourcePage).map((movie) => <a key={movie.id} href={movie.sourcePage} target="_blank" rel="noopener noreferrer">{movie.title}</a>)}</div></details>
        </div>
     </main>;
   };
@@ -1551,20 +2141,21 @@ export function Reelroom() {
     const detailGenres = cinemetaMeta?.genres.length
       ? cinemetaMeta.genres.join(" · ")
       : selectedMovie.genres?.join(" · ") ?? selectedMovie.genre;
+    const detailYear = cinemetaMeta?.year || (selectedMovie.year > 0 ? selectedMovie.year : null);
     const runtimeMinutes = cinemetaMeta?.runtime?.match(/\d+/)?.[0];
     const detailRuntime = cinemetaMeta
       ? runtimeMinutes ? `${runtimeMinutes} min` : CINEMETA_FIELD_MESSAGES.runtime
-      : `${selectedMovie.runtime} min`;
+      : selectedMovie.runtime > 0 ? `${selectedMovie.runtime} min` : CINEMETA_FIELD_MESSAGES.runtime;
     const detailDirector = cinemetaMeta
       ? cinemetaMeta.director.length ? cinemetaMeta.director.join(", ") : CINEMETA_FIELD_MESSAGES.director
-      : selectedMovie.director;
+      : selectedMovie.director || CINEMETA_FIELD_MESSAGES.director;
     const detailSynopsis = cinemetaMeta
       ? cinemetaMeta.description ?? CINEMETA_FIELD_MESSAGES.synopsis
-      : selectedMovie.synopsis;
+      : selectedMovie.synopsis || CINEMETA_FIELD_MESSAGES.synopsis;
     const cinemetaErrorMessage = cinemetaLookup.movieId === selectedMovie.id
       ? cinemetaLookup.errorMessage
       : undefined;
-    const options = experience === "Physical" ? ["DVD", "Blu-ray", ...(FOUR_K_DEMO_TITLES.has(selectedMovie.id) ? ["4K Ultra HD"] : [])] : selectedMovie.platforms;
+    const options = optionsForMovie(selectedMovie, experience, buyMode);
     const setOption = (option: string) => { setSelectedOption(option); setAdded(false); };
     const priceText = typeof itemPrice === "number" ? itemPrice : Number(itemPrice);
     return <main>
@@ -1585,7 +2176,7 @@ export function Reelroom() {
           <span className="rr-eyebrow">The REELROOM archive</span><h1>{selectedMovie.title}</h1>
           <div className="rr-meta-line">{selectedMovie.isCriterion && !cinemetaMeta
             ? <><span>Criterion Collection</span><span>Physical &amp; digital demo options</span></>
-            : <><span>{cinemetaMeta?.year ?? selectedMovie.year}</span><span>{detailGenres}</span><span>{detailRuntime}</span></>}</div>
+            : <>{detailYear && <span>{detailYear}</span>}{detailGenres && <span>{detailGenres}</span>}<span>{detailRuntime}</span></>}</div>
           <p className="rr-synopsis">{detailSynopsis}</p>
           <p className="rr-detail-director">{selectedMovie.isCriterion && !cinemetaMeta ? "CURATED COLLECTION" : "DIRECTED BY"} <strong>{detailDirector}</strong></p>
           <MovieMetadata
@@ -1615,7 +2206,7 @@ export function Reelroom() {
         <div className="rr-option-panel">
           <span className="rr-eyebrow">Choose your experience</span><h3>How do you want it?</h3>
           <div className="rr-choice-row">
-            <button className={`rr-choice ${experience === "Physical" ? "active" : ""}`} onClick={() => setExperienceMode("Physical")}><strong>PHYSICAL</strong><span>Own or rent a disc</span></button>
+            <button className={`rr-choice ${experience === "Physical" ? "active" : ""}`} disabled={!optionsForMovie(selectedMovie, "Physical", buyMode).length} onClick={() => setExperienceMode("Physical")}><strong>PHYSICAL</strong><span>{selectedMovie.physicalAvailable ? "Own or rent a disc" : "Not listed in catalog"}</span></button>
             <button className={`rr-choice ${experience === "Digital" ? "active blue" : ""}`} disabled={selectedMovie.platforms.length === 0} onClick={() => setExperienceMode("Digital")}><strong>DIGITAL</strong><span>{selectedMovie.platforms.length ? "Choose a platform" : "Not listed in this demo"}</span></button>
           </div>
           {selectedMovie.platforms.length === 0 && <p className="rr-physical-note">Physical-only demo listing. Digital availability is not represented here.</p>}
@@ -1627,19 +2218,19 @@ export function Reelroom() {
           <span className="rr-field-label">{experience === "Physical" ? "Choose a disc format" : "Choose a demo platform"}</span>
           <div className="rr-choice-list">
             {options.map((option) => {
-              const platformBase = ({ "Apple TV": 2.5, "Amazon Prime Video": 2.9, "Google TV": 2.3, "YouTube Movies": 2.2 } as Record<string, number>)[option] ?? 2.5;
-              const optionPrice = experience === "Physical" ? PHYSICAL_PRICE[buyMode][option] : Number((platformBase * (buyMode === "Buy" ? 3.2 : 1)).toFixed(3));
-              return <button key={option} className={`rr-choice ${selectedOption === option ? `active ${experience === "Digital" ? "blue" : ""}` : ""}`} onClick={() => setOption(option)}><span><strong>{option}</strong><span>{experience === "Physical" ? (option === "DVD" ? "Standard definition" : option === "Blu-ray" ? "High definition" : "Ultra high definition") : `${buyMode} · demo listing`}</span></span><span className="rr-selection-price">{money(optionPrice)}</span></button>;
+              const optionVariant = findMovieVariant(selectedMovie, experience, buyMode, option);
+              const optionPrice = optionVariant ? Number(optionVariant.price_kwd) : 0;
+              return <button key={option} className={`rr-choice ${selectedOption === option ? `active ${experience === "Digital" ? "blue" : ""}` : ""}`} onClick={() => setOption(option)}><span><strong>{option}</strong><span>{experience === "Physical" ? (option === "DVD" ? "Standard definition" : option === "Blu-ray" ? "High definition" : "Ultra high definition") : `${buyMode} · illustrative listing`}</span></span><span className="rr-selection-price">{money(optionPrice)}</span></button>;
             })}
           </div>
           {buyMode === "Rent" && <p className="rr-rental-note">{experience === "Physical" ? "7-day disc rental. Return date will be shown on your demo order." : "Example terms: 30 days to begin, 48 hours to finish after playback starts."}</p>}
           {experience === "Physical" && buyMode === "Buy" && <><span className="rr-field-label">Quantity</span><div className="rr-quantity"><button aria-label="Decrease quantity" onClick={() => setQuantity((current) => Math.max(1, current - 1))}><Minus size={13}/></button><span>{quantity}</span><button aria-label="Increase quantity" onClick={() => setQuantity((current) => Math.min(12, current + 1))}><Plus size={13}/></button></div></>}
-          <div className="rr-summary"><span><small>{selectedMovie.title} · {buyMode.toLowerCase()} · {experience === "Physical" ? selectedOption : selectedOption}</small><strong>{money(priceText * (experience === "Physical" && buyMode === "Buy" ? quantity : 1))}</strong></span><span className="rr-tags">{buyMode === "Rent" ? "RENTAL" : "DEMO PRICE"}</span></div>
-          <button className="rr-button" style={{ width: "100%", marginTop: 14 }} onClick={addToCart}><ShoppingBag size={15}/> Add to cart</button>
+          <div className="rr-summary"><span><small>{selectedMovie.title} · {buyMode.toLowerCase()} · {selectedOption}</small><strong>{money(priceText * (experience === "Physical" && buyMode === "Buy" ? quantity : 1))}</strong></span><span className="rr-tags">{buyMode === "Rent" ? "RENTAL" : "PRICE"}</span></div>
+           <button className="rr-button" style={{ width: "100%", marginTop: 14 }} disabled={!selectedVariant} onClick={addToCart}><ShoppingBag size={15}/> Add to cart</button>
           {added && <p className="rr-added" role="status"><Check size={13}/> Added. Your cart is ready when you are.</p>}
         </div>
       </div></section>
-      <section className="rr-section compact"><div className="rr-wrap"><div className="rr-section-head"><div><span className="rr-eyebrow">Keep the evening going</span><h2 className="rr-section-title rr-display">You might also like.</h2></div><button className="rr-text-link" onClick={() => navigate("browse")}>Full archive <ArrowRight size={13}/></button></div>{movieGrid(MOVIES.filter((movie) => movie.id !== selectedMovie.id).slice(0,4), "four")}</div></section>
+       <section className="rr-section compact"><div className="rr-wrap"><div className="rr-section-head"><div><span className="rr-eyebrow">Keep the evening going</span><h2 className="rr-section-title rr-display">You might also like.</h2></div><button className="rr-text-link" onClick={() => navigate("browse")}>Full archive <ArrowRight size={13}/></button></div>{movieGrid(movies.filter((movie) => movie.id !== selectedMovie.id).slice(0,4), "four")}</div></section>
     </main>;
   };
 
@@ -1650,25 +2241,27 @@ export function Reelroom() {
         <div className="rr-cart-layout">
           <div>{cart.map((item) => {
             const movie = movieFor(item.movieId);
+            const title = item.movieTitleSnapshot ?? movie.title;
+            const poster = item.posterUrlSnapshot ?? movie.posterPath ?? `/__mockup/images/reelroom-${movie.id}.${movie.posterExt ?? "jpg"}`;
             return <div className="rr-cart-item" key={item.key}>
-              <div className="rr-poster" style={{ "--poster-bg": `linear-gradient(148deg,${movie.palette[0]},#11181c 78%)`, "--poster-glow": movie.palette[1] } as CSSProperties}><img className="rr-poster-image" src={movie.posterPath ?? `/__mockup/images/reelroom-${movie.id}.${movie.posterExt ?? "jpg"}`} alt={`${movie.title} theatrical poster`} loading="lazy"/><div className="rr-poster-art"/><span className="rr-poster-title">{movie.title}</span></div>
-              <div><h3 className="rr-cart-name">{movie.title}</h3><p className="rr-cart-desc">{item.experience} · {item.mode} · {item.option}</p><p className="rr-cart-desc">{item.rental}</p>{item.experience === "Physical" && item.mode === "Buy" && <div className="rr-quantity" style={{ marginTop: 8 }}><button aria-label={`Decrease ${movie.title} quantity`} onClick={() => updateQuantity(item.key, item.quantity - 1)}><Minus size={12}/></button><span>{item.quantity}</span><button aria-label={`Increase ${movie.title} quantity`} onClick={() => updateQuantity(item.key, item.quantity + 1)}><Plus size={12}/></button></div>}</div>
+              <div className="rr-poster" style={{ "--poster-bg": `linear-gradient(148deg,${movie.palette[0]},#11181c 78%)`, "--poster-glow": movie.palette[1] } as CSSProperties}><img className="rr-poster-image" src={poster} alt={`${title} theatrical poster`} loading="lazy"/><div className="rr-poster-art"/><span className="rr-poster-title">{title}</span></div>
+              <div><h3 className="rr-cart-name">{title}</h3><p className="rr-cart-desc">{item.experience} · {item.mode} · {item.option}</p><p className="rr-cart-desc">{item.rental}</p>{item.experience === "Physical" && item.mode === "Buy" && <div className="rr-quantity" style={{ marginTop: 8 }}><button aria-label={`Decrease ${title} quantity`} onClick={() => updateQuantity(item.key, item.quantity - 1)}><Minus size={12}/></button><span>{item.quantity}</span><button aria-label={`Increase ${title} quantity`} onClick={() => updateQuantity(item.key, item.quantity + 1)}><Plus size={12}/></button></div>}</div>
               <strong className="rr-price rr-cart-price">{money(item.price * item.quantity)}</strong>
-              <button className="rr-icon-btn" aria-label={`Remove ${movie.title}`} onClick={() => removeCartItem(item.key)}><Trash2 size={16}/></button>
+              <button className="rr-icon-btn" aria-label={`Remove ${title}`} onClick={() => removeCartItem(item.key)}><Trash2 size={16}/></button>
             </div>;
           })}</div>
-          <aside className="rr-cart-aside"><h3>Order summary</h3><div className="rr-total-line"><span>Items ({cartCount})</span><span>{money(cartTotal)}</span></div><div className="rr-total-line"><span>Delivery</span><span>{cart.some((item) => item.experience === "Physical") ? "At checkout" : "Digital · demo"}</span></div><div className="rr-total-line total"><span>Estimated total</span><span>{money(cartTotal)}</span></div><p className="rr-demo-note" style={{ margin: "14px 0" }}>Demo checkout only. No payment will be collected.</p><button className="rr-button" style={{ width: "100%" }} onClick={() => navigate("checkout")}>Continue to demo checkout <ArrowRight size={14}/></button><button className="rr-text-link" style={{ marginTop: 12 }} onClick={() => navigate("browse")}>Continue exploring</button></aside>
+           <aside className="rr-cart-aside"><h3>Order summary</h3><div className="rr-total-line"><span>Items ({cartCount})</span><span>{money(cartTotal)}</span></div><div className="rr-total-line"><span>Delivery</span><span>{cart.some((item) => item.experience === "Physical") ? "At checkout" : "Digital"}</span></div><div className="rr-total-line total"><span>Estimated total</span><span>{money(cartTotal)}</span></div><p className="rr-demo-note" style={{ margin: "14px 0" }}>Demo checkout only. No payment will be collected.</p><button className="rr-button" style={{ width: "100%" }} onClick={() => navigate("checkout")}>Continue to demo checkout <ArrowRight size={14}/></button><button className="rr-text-link" style={{ marginTop: 12 }} onClick={() => navigate("browse")}>Continue exploring</button></aside>
         </div>}
     </section>
   </main>;
 
   const renderCheckout = () => {
-    if (confirmedOrder) return <main className="rr-wrap"><section className="rr-section"><div className="rr-confirm"><div className="rr-confirm-icon"><Check size={28}/></div><span className="rr-eyebrow" style={{ justifyContent: "center" }}>Demo order confirmed</span><h1>That’s a wrap.</h1><div className="rr-order-num">{confirmedOrder.id}</div><p>Thanks, {confirmedOrder.customer}. This order is saved in your REELROOM demo library. No payment was processed and no licensed movie access is included.</p><div className="rr-order-card"><h3>Order details</h3>{confirmedOrder.items.map((item) => <div key={item.key} className="rr-order-row"><span>{movieFor(item.movieId).title} · {item.experience} {item.mode} · {item.option}<br/><small>{item.mode === "Rent" ? item.rental : confirmedOrder.fulfillment}</small></span><strong>{money(item.price * item.quantity)}</strong></div>)}<div className="rr-order-row"><strong>Total · example</strong><strong>{money(confirmedOrder.total)}</strong></div></div><button className="rr-button" onClick={() => navigate("library")}>View my library <ArrowRight size={14}/></button></div></section></main>;
+     if (confirmedOrder) return <main className="rr-wrap"><section className="rr-section"><div className="rr-confirm"><div className="rr-confirm-icon"><Check size={28}/></div><span className="rr-eyebrow" style={{ justifyContent: "center" }}>Demo order confirmed</span><h1>That’s a wrap.</h1><div className="rr-order-num">{confirmedOrder.id}</div><p>Thanks, {confirmedOrder.customer}. This order is saved to your REELROOM account. No payment was processed and no licensed movie access is included.</p><div className="rr-order-card"><h3>Order details</h3>{confirmedOrder.items.map((item) => <div key={item.key} className="rr-order-row"><span>{item.movieTitleSnapshot ?? movieFor(item.movieId).title} · {item.experience} {item.mode} · {item.option}<br/><small>{item.mode === "Rent" ? item.rental : confirmedOrder.fulfillment}</small></span><strong>{money(item.price * item.quantity)}</strong></div>)}<div className="rr-order-row"><strong>Order total</strong><strong>{money(confirmedOrder.total)}</strong></div></div><button className="rr-button" onClick={() => navigate("library")}>View my library <ArrowRight size={14}/></button><button className="rr-text-link" onClick={() => navigate("orders")}>View account orders</button></div></section></main>;
     return <main className="rr-wrap">
       <div className="rr-page-head"><span className="rr-eyebrow">No real money, just the movie-night feeling</span><h1>Demo checkout</h1><p>Review the order, add contact details, and create a saved demonstration order. Nothing will be charged.</p></div>
       <div className="rr-checkout-steps"><span className={`rr-checkout-step ${checkoutStep === 1 ? "active" : ""}`}>01 &nbsp; Review order</span><span className={`rr-checkout-step ${checkoutStep === 2 ? "active" : ""}`}>02 &nbsp; Your details</span><span className={`rr-checkout-step ${checkoutStep === 3 ? "active" : ""}`}>03 &nbsp; Confirmation</span></div>
       {cart.length === 0 ? <div className="rr-empty"><ShoppingBag size={25}/><h2>Nothing to check out yet.</h2><p>Your cart is empty. Pick a film first, then return here.</p><button className="rr-button" onClick={() => navigate("browse")}>Find a film</button></div> :
-      checkoutStep === 1 ? <div className="rr-cart-layout"><div className="rr-cart-aside" style={{ background: "transparent" }}><h3>Review your selection</h3>{cart.map((item) => <div className="rr-order-row" key={item.key}><span>{movieFor(item.movieId).title}<br/><small>{item.experience} · {item.mode} · {item.option} · Qty {item.quantity}</small></span><strong>{money(item.price * item.quantity)}</strong></div>)}<div className="rr-order-row"><strong>Estimated total</strong><strong>{money(cartTotal)}</strong></div></div><aside className="rr-cart-aside"><h3>Before we continue</h3><p style={{ color: "#9aa4ad", fontSize: 11 }}>Physical selections use a delivery or pickup preference. Digital platform selections are recorded as your demo preference only.</p><div className="rr-divider"/><p className="rr-demo-note">Demonstration checkout · no payment processing · no streaming rights.</p><button className="rr-button" style={{ width: "100%", marginTop: 16 }} onClick={() => { setCheckoutStep(2); setCheckoutErrors({}); }}>Add your details <ArrowRight size={14}/></button></aside></div> :
+      checkoutStep === 1 ? <div className="rr-cart-layout"><div className="rr-cart-aside" style={{ background: "transparent" }}><h3>Review your selection</h3>{cart.map((item) => <div className="rr-order-row" key={item.key}><span>{item.movieTitleSnapshot ?? movieFor(item.movieId).title}<br/><small>{item.experience} · {item.mode} · {item.option} · Qty {item.quantity}</small></span><strong>{money(item.price * item.quantity)}</strong></div>)}<div className="rr-order-row"><strong>Estimated total</strong><strong>{money(cartTotal)}</strong></div></div><aside className="rr-cart-aside"><h3>Before we continue</h3><p style={{ color: "#9aa4ad", fontSize: 11 }}>Physical selections use a delivery or pickup preference. Digital platform selections are recorded as your demo preference only.</p><div className="rr-divider"/><p className="rr-demo-note">Demonstration checkout · no payment processing · no streaming rights.</p><button className="rr-button" style={{ width: "100%", marginTop: 16 }} onClick={() => { setCheckoutStep(2); setCheckoutErrors({}); }}>Add your details <ArrowRight size={14}/></button></aside></div> :
         <form className="rr-form" onSubmit={submitOrder} noValidate>
           <div className="rr-cart-layout"><div className="rr-cart-aside" style={{ background: "transparent" }}><h3>Contact and fulfillment</h3><div className="rr-form-grid">
             <label>Full name<input className="rr-input" value={checkoutData.name} onChange={(event) => setCheckoutData({ ...checkoutData, name: event.target.value })} autoComplete="name"/>{checkoutErrors.name && <span className="rr-error">{checkoutErrors.name}</span>}</label>
@@ -1677,16 +2270,19 @@ export function Reelroom() {
             {cart.some((item) => item.experience === "Physical") && <label>Physical order preference<select className="rr-select" value={checkoutData.fulfillment} onChange={(event) => setCheckoutData({ ...checkoutData, fulfillment: event.target.value })}><option>Delivery</option><option>Pickup</option></select></label>}
             {cart.some((item) => item.experience === "Physical") && checkoutData.fulfillment === "Delivery" && <label style={{ gridColumn: "1 / -1" }}>Delivery address in Kuwait<textarea className="rr-textarea" rows={3} value={checkoutData.address} onChange={(event) => setCheckoutData({ ...checkoutData, address: event.target.value })} placeholder="Area, block, street, building, apartment"/>{checkoutErrors.address && <span className="rr-error">{checkoutErrors.address}</span>}</label>}
           </div><label style={{ marginTop: 14 }}>Order note (optional)<textarea className="rr-textarea" rows={2} value={checkoutData.note} onChange={(event) => setCheckoutData({ ...checkoutData, note: event.target.value })} placeholder="Anything we should know?"/></label></div>
-          <aside className="rr-cart-aside"><h3>Demo summary</h3><div className="rr-total-line"><span>Items</span><span>{cartCount}</span></div><div className="rr-total-line"><span>Payment</span><span>Not collected</span></div><div className="rr-total-line total"><span>Total · example</span><span>{money(cartTotal)}</span></div><p className="rr-demo-note" style={{ marginTop: 14 }}>Continue will create a local demo order, clear this cart, and add an order record to My Library.</p><button className="rr-button" style={{ width: "100%", marginTop: 14 }} type="submit">Confirm demo order <Check size={14}/></button><button className="rr-text-link" type="button" onClick={() => setCheckoutStep(1)}><ArrowLeft size={13}/> Back to review</button></aside></div>
+          <aside className="rr-cart-aside"><h3>Order summary</h3><div className="rr-total-line"><span>Items</span><span>{cartCount}</span></div><div className="rr-total-line"><span>Payment</span><span>Not collected</span></div><div className="rr-total-line total"><span>Total</span><span>{money(cartTotal)}</span></div><p className="rr-demo-note" style={{ marginTop: 14 }}>{authUser ? "Confirming saves this demonstration order to your account. No payment is collected." : "Sign in to save this demo order to an account. No payment is collected."}</p><button className="rr-button" style={{ width: "100%", marginTop: 14 }} type="submit" disabled={orderSubmitting}>{orderSubmitting ? "Saving order…" : "Confirm demo order"} <Check size={14}/></button><button className="rr-text-link" type="button" onClick={() => setCheckoutStep(1)}><ArrowLeft size={13}/> Back to review</button></aside></div>
         </form>}
     </main>;
   };
 
   const renderLibrary = () => {
     const grouped = new Map<string, { movie: Movie; editions: Map<string, LibraryEdition> }>();
-    for (const order of orders) {
+    for (const order of [...orders, ...localOrders]) {
       for (const item of order.items) {
-        const movie = movieFor(item.movieId);
+        const currentMovie = movieFor(item.movieId);
+        const movie = item.movieTitleSnapshot
+          ? { ...currentMovie, title: item.movieTitleSnapshot, posterPath: item.posterUrlSnapshot ?? currentMovie.posterPath }
+          : currentMovie;
         let film = grouped.get(movie.id);
         if (!film) {
           film = { movie, editions: new Map() };
@@ -1712,7 +2308,7 @@ export function Reelroom() {
 
     for (const movieId of manualLibraryIds) {
       if (grouped.has(movieId)) continue;
-      const movie = MOVIES.find((candidate) => candidate.id === movieId);
+      const movie = movies.find((candidate) => candidate.id === movieId);
       if (movie) grouped.set(movieId, { movie, editions: new Map() });
     }
 
@@ -1722,8 +2318,72 @@ export function Reelroom() {
       manuallyAdded: editions.size === 0 && manualLibraryIds.includes(movie.id),
     }));
 
-    return <LibraryShelf films={libraryFilms} onBrowse={() => navigate("browse")} />;
+    return <div>
+      {authUser && localOrders.length > 0 && <div className="rr-wrap"><p className="rr-demo-note">Older demonstration orders saved on this device remain local; they have not been added to this account.</p></div>}
+      <LibraryShelf films={libraryFilms} onBrowse={() => navigate("browse")} />
+    </div>;
   };
+
+  const renderOrders = () => !authUser
+    ? <main className="rr-wrap"><section className="rr-section"><div className="rr-empty"><h1>Sign in to view orders</h1><p>Your order history is private to your account.</p><button className="rr-button" onClick={() => openAuth("login", "orders")}>Sign in <ArrowRight size={14}/></button></div></section></main>
+    : <main className="rr-wrap">
+      <div className="rr-page-head"><span className="rr-eyebrow">Your account</span><h1>Orders</h1><p>Demo orders saved to your account, with the selected options and prices recorded at checkout.</p></div>
+      {localOrders.length > 0 && <p className="rr-demo-note">Older demonstration orders saved before sign-in remain on this device and appear in My Library, not in this account history.</p>}
+      {accountStateError && <button className="rr-text-link" onClick={() => { setAccountStateError(""); setCatalogRetry((current) => current + 1); }}>Retry account sync <RotateCcw size={13}/></button>}
+      {!accountDataHydratedFor || accountDataHydratedFor !== authUser.id
+        ? <section className="rr-section"><div className="rr-empty" aria-live="polite">Loading your orders…</div></section>
+        : orders.length === 0
+          ? <section className="rr-section"><div className="rr-empty"><ShoppingBag size={26}/><h2>No account orders yet.</h2><p>Your demo checkout confirmations will be saved here.</p><button className="rr-button" onClick={() => navigate("browse")}>Browse films <ArrowRight size={14}/></button></div></section>
+          : <section className="rr-section"><div className="rr-order-list">{orders.map((order) => <article key={order.databaseId ?? order.id}>
+            <div className="rr-account-order-heading"><div><span className="rr-eyebrow">Demo order</span><h2>{order.id}</h2></div><span>{order.date}</span></div>
+            {order.items.map((item) => <div className="rr-order-row" key={item.key}>
+              <span>{item.movieTitleSnapshot ?? movieFor(item.movieId).title} · {item.experience} {item.mode} · {item.option}<br/><small>Qty {item.quantity} · {item.mode === "Rent" ? item.rental : order.fulfillment}</small></span>
+              <strong>{money(item.price * item.quantity)}</strong>
+            </div>)}
+            <div className="rr-order-row"><strong>Order total</strong><strong>{money(order.total)}</strong></div>
+          </article>)}</div></section>}
+    </main>;
+
+  const renderAccount = () => !authUser
+    ? <main className="rr-wrap"><section className="rr-section"><div className="rr-empty"><h1>Sign in to view your profile</h1><p>Your account details are private and available after sign-in.</p><button className="rr-button" onClick={() => openAuth("login", "account")}>Sign in <ArrowRight size={14}/></button></div></section></main>
+    : <main className="rr-wrap">
+      <div className="rr-page-head"><span className="rr-eyebrow">Your REELROOM account</span><h1>Profile</h1><p>Update the name shown in your account menu. Your sign-in email is managed by Supabase Auth.</p></div>
+      <section className="rr-section compact"><div className="rr-account-card">
+        <div className="rr-account-summary"><span className="rr-eyebrow">Signed in as</span><strong>{authUser.email}</strong></div>
+        <form className="rr-form" onSubmit={saveProfile} noValidate>
+          <label>Display name<input className="rr-input" name="displayName" minLength={2} maxLength={80} defaultValue={profile?.display_name ?? String(authUser.user_metadata?.display_name ?? "")} autoComplete="nickname" required/></label>
+          <button className="rr-button" type="submit" disabled={profileSaving}>{profileSaving ? "Saving…" : "Save profile"}</button>
+        </form>
+        {accountStateError && <p className="rr-error" role="alert">{accountStateError}<button type="button" className="rr-text-link" onClick={() => { setAccountStateError(""); setCatalogRetry((current) => current + 1); }}>Retry</button></p>}
+      </div></section>
+    </main>;
+
+  const renderAuth = () => <main className="rr-wrap rr-auth-page">
+    <section className="rr-auth-card">
+      <span className="rr-eyebrow">{authMode === "signup" ? "Join the collection" : authMode === "verify" ? "One last step" : authMode === "forgot" ? "Account recovery" : authMode === "reset" ? "Choose a new password" : "Welcome back"}</span>
+      <h1>{authMode === "signup" ? "Create your account." : authMode === "verify" ? "Check your email." : authMode === "forgot" ? "Reset your password." : authMode === "reset" ? "Set a new password." : "Sign in to REELROOM."}</h1>
+      <p>{authMode === "signup" ? "Keep your watchlist, cart, and demo orders with your account." : authMode === "verify" ? "Confirm your email address to finish creating your account." : authMode === "forgot" ? "We’ll email a password reset link if an account matches." : authMode === "reset" ? "Use at least 8 characters, then sign in again." : "Your watchlist, cart, and account orders are saved here."}</p>
+      {authNotice && <div className="rr-auth-notice" role="status">{authNotice}</div>}
+      {authError && <div className="rr-auth-error" role="alert">{authError}</div>}
+      {authMode === "verify" ? <div className="rr-auth-actions">
+        <button className="rr-button" onClick={() => { setAuthMode("login"); setAuthError(""); setAuthNotice(""); }}>Back to sign in</button>
+      </div> : <form className="rr-form rr-auth-form" onSubmit={submitAuth} noValidate>
+        {authMode === "signup" && <label>Display name<input className="rr-input" name="displayName" autoComplete="nickname" minLength={2} maxLength={80} required/></label>}
+        {authMode !== "reset" && <label>Email address<input className="rr-input" name="email" type="email" autoComplete="email" required/></label>}
+        {(authMode === "login" || authMode === "signup" || authMode === "reset") && <>
+          <label>{authMode === "reset" ? "New password" : "Password"}
+            <span className="rr-password-field"><input className="rr-input" name="password" type={authPasswordVisible ? "text" : "password"} autoComplete={authMode === "login" ? "current-password" : "new-password"} minLength={8} required/><button type="button" aria-label={authPasswordVisible ? "Hide password" : "Show password"} onClick={() => setAuthPasswordVisible((visible) => !visible)}>{authPasswordVisible ? "Hide" : "Show"}</button></span>
+          </label>
+          {(authMode === "signup" || authMode === "reset") && <label>Confirm password<input className="rr-input" name="confirmPassword" type={authPasswordVisible ? "text" : "password"} autoComplete="new-password" minLength={8} required/></label>}
+        </>}
+        <button className="rr-button" type="submit" disabled={authBusy}>{authBusy ? "Please wait…" : authMode === "signup" ? "Create account" : authMode === "forgot" ? "Send reset link" : authMode === "reset" ? "Update password" : "Sign in"}</button>
+      </form>}
+      {authMode === "login" && <div className="rr-auth-links"><button onClick={() => { setAuthMode("forgot"); setAuthError(""); setAuthNotice(""); }}>Forgot password?</button><span>New to REELROOM?</span><button onClick={() => { setAuthMode("signup"); setAuthError(""); setAuthNotice(""); }}>Create account</button></div>}
+      {authMode === "signup" && <div className="rr-auth-links"><span>Already have an account?</span><button onClick={() => { setAuthMode("login"); setAuthError(""); setAuthNotice(""); }}>Sign in</button></div>}
+      {(authMode === "forgot" || authMode === "reset" || authMode === "verify") && <div className="rr-auth-links"><button onClick={() => { setAuthMode("login"); setAuthError(""); setAuthNotice(""); }}>Back to sign in</button></div>}
+      <p className="rr-auth-fineprint">Demo checkout only. No payment is taken and no movie access is provided.</p>
+    </section>
+  </main>;
 
   const renderAbout = () => <main className="rr-wrap">
     <div className="rr-page-head"><span className="rr-eyebrow">A note from the projection booth</span><h1>One film. Every way to watch it.</h1><p>REELROOM is a curated cinema archive for people who care about what they watch—and how they keep it.</p></div>
@@ -1751,7 +2411,7 @@ export function Reelroom() {
     <div className="rr-ad-bg"/><div className="rr-ad-shade"/>
     <div className="rr-ad-inner">
       <div className="rr-ad-copy"><span className="rr-ad-stage">{adStage.label} · 12 SECOND REEL</span><h1 key={adStage.label}>{adStage.headline}</h1><p>{adStage.body}</p>{adSecond >= 9 && <button className="rr-button" style={{ marginTop: 22 }} onClick={() => navigate("browse")}>Explore REELROOM <ArrowRight size={14}/></button>}{adSecond >= 7 && adSecond < 9 && <div style={{ marginTop: 17 }}><Logo onClick={() => navigate("home")}/></div>}</div>
-      <div className="rr-ad-visual" aria-hidden="true">{[MOVIES[4], MOVIES[1], MOVIES[12]].map((movie) => <div className="rr-ad-poster" key={movie.id}><div className="rr-poster" style={{ "--poster-bg": `linear-gradient(148deg,${movie.palette[0]},#11181c 78%)`, "--poster-glow": movie.palette[1] } as CSSProperties}><div className="rr-poster-art"/><span className="rr-poster-title">{movie.title}</span><span className="rr-poster-year">{movie.year} · REELROOM ARCHIVE</span></div></div>)}</div>
+      <div className="rr-ad-visual" aria-hidden="true">{movies.slice(0, 3).map((movie) => <div className="rr-ad-poster" key={movie.id}><div className="rr-poster" style={{ "--poster-bg": `linear-gradient(148deg,${movie.palette[0]},#11181c 78%)`, "--poster-glow": movie.palette[1] } as CSSProperties}><img className="rr-poster-image" src={movie.posterPath} alt="" loading="lazy"/><div className="rr-poster-art"/><span className="rr-poster-title">{movie.title}</span>{movie.year > 0 && <span className="rr-poster-year">{movie.year} · REELROOM ARCHIVE</span>}</div></div>)}</div>
     </div>
     <div className="rr-ad-controls"><span>{String(Math.min(adSecond, 12)).padStart(2, "0")} / 12</span><div className="rr-ad-track"><div className="rr-ad-progress" style={{ width: `${Math.min(adSecond / 12 * 100, 100)}%` }}/></div><button aria-label={adPlaying ? "Pause advertisement" : "Play advertisement"} onClick={() => { if (adSecond >= 12) { setAdSecond(0); setAdKey((key) => key + 1); setAdPlaying(true); } else setAdPlaying((playing) => !playing); }}>{adSecond >= 12 ? <RotateCcw size={15}/> : adPlaying ? <span style={{ fontSize: 11 }}>Ⅱ</span> : <Play size={14}/>}</button>{adSecond >= 12 && <button aria-label="Replay advertisement" onClick={() => { setAdSecond(0); setAdKey((key) => key + 1); setAdPlaying(true); }}><RotateCcw size={14}/></button>}</div>
   </main>;
@@ -1763,21 +2423,36 @@ export function Reelroom() {
     <div className="rr-footer-col"><h4>A clear note</h4><p style={{ marginTop: 0 }}>This is a demonstration storefront. Prices and availability are examples. No payments or streaming rights are provided.</p><span style={{ color: "#00E054", fontSize: 10, display: "block", marginTop: 14 }}>Kuwait · KWD</span></div>
   </div><div className="rr-footer-bottom"><span>© 2025 REELROOM · Every Film. Your Way.</span><span>Original cinema, considered carefully.</span></div></div></footer>;
 
-  const content = view === "home" ? renderHome()
+  const catalogLoadingView = <main className="rr-wrap rr-catalog-status" aria-busy="true">
+    <div className="rr-page-head"><span className="rr-eyebrow">REELROOM archive</span><h1>Loading the film catalog…</h1><p>Fetching films and available formats.</p></div>
+    <div className="rr-grid six" aria-hidden="true">{Array.from({ length: 6 }, (_, index) => <div className="rr-catalog-skeleton" key={index}><span/><span/><span/></div>)}</div>
+  </main>;
+  const catalogErrorView = <main className="rr-wrap rr-catalog-status">
+    <div className="rr-empty" role="alert"><Film size={27} color="#00E054"/><h1>Catalog unavailable</h1><p>{catalogError}</p><button className="rr-button" onClick={() => setCatalogRetry((current) => current + 1)}>Retry catalog <RotateCcw size={14}/></button></div>
+  </main>;
+  const needsCatalog = ["home", "browse", "physical", "digital", "details", "watchlist", "movieNight", "cart", "checkout", "library", "ad"].includes(view);
+  const pageContent = view === "auth" ? renderAuth()
+    : view === "orders" ? renderOrders()
+    : view === "account" ? renderAccount()
+    : view === "home" ? renderHome()
     : view === "browse" || view === "physical" || view === "digital" || view === "watchlist" ? renderCatalog()
     : view === "details" ? renderDetails()
-    : view === "movieNight" ? <MovieNightPlanner movies={MOVIES} watchlistIds={watchlist} onAddToWatchlist={addToWatchlistFromPlanner}/>
+    : view === "movieNight" ? <MovieNightPlanner movies={movies} watchlistIds={watchlist} onAddToWatchlist={addToWatchlistFromPlanner}/>
     : view === "cart" ? renderCart()
     : view === "checkout" ? renderCheckout()
     : view === "library" ? renderLibrary()
     : view === "about" ? renderAbout()
     : view === "contact" ? renderContact()
     : renderAd();
+  const content = needsCatalog && catalogStatus === "loading" ? catalogLoadingView
+    : needsCatalog && catalogStatus === "error" ? catalogErrorView
+    : pageContent;
 
   return <PosterPreviewContext.Provider value={{ activeId: activePreviewId, setActiveId: setActivePreviewId, selectedId: selectedPreviewId, setSelectedId: setSelectedPreviewId }}>
     <div className={`reelroom ${activePreviewId ? "rr-has-active-preview" : ""}`} data-preview-active={activePreviewId ? "true" : "false"}>
       <div className="rr-site-shell" inert={introVisible} aria-hidden={introVisible}>
         {renderNav()}
+        {accountStateError && <div className="rr-wrap rr-account-alert" role="alert"><span>{accountStateError}</span><button type="button" aria-label="Dismiss message" onClick={() => setAccountStateError("")}><X size={15}/></button></div>}
         {content}
         {view !== "ad" && renderFooter()}
         <div className="rr-toast-stack" aria-live="polite" aria-atomic="true">{toast && <div className="rr-toast"><CheckCircle2 size={18}/>{toast}</div>}</div>

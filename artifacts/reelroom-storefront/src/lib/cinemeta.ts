@@ -178,11 +178,12 @@ function releaseYear(item: CinemetaCatalogItem): number | null {
 function findTitleMatch(
   items: CinemetaCatalogItem[],
   title: string,
-  year: number,
+  year?: number,
 ): CinemetaCatalogItem | null {
   const normalizedTitle = normalizeTitle(title);
   const matches = items.filter((item) => normalizeTitle(item.name) === normalizedTitle);
   if (!matches.length) return null;
+  if (year === undefined) return matches[0] ?? null;
   return matches.sort((a, b) => {
     const yearA = releaseYear(a);
     const yearB = releaseYear(b);
@@ -236,7 +237,7 @@ function toCinemetaMovie(value: unknown, fallbackId: string): CinemetaMovie {
 
 export async function fetchCinemetaMovie(
   title: string,
-  year: number,
+  year?: number,
 ): Promise<CinemetaMovie | null> {
   let match: CinemetaCatalogItem | null = null;
   try {

@@ -328,7 +328,7 @@ export function MovieNightPlanner({ movies, watchlistIds, onAddToWatchlist }: Mo
         const movie = eligible[index];
         let metadata = null;
         try {
-          metadata = await fetchCinemetaMovie(movie.title, movie.year);
+          metadata = await fetchCinemetaMovie(movie.title, movie.year > 0 ? movie.year : undefined);
         } catch {
           metadata = null;
         }
@@ -722,7 +722,7 @@ export function MovieNightPlanner({ movies, watchlistIds, onAddToWatchlist }: Mo
                     <div className="rr-night-time"><strong>{formatClock(item.start)}</strong><span>{formatClock(item.end)}</span><i /></div>
                     <div className="rr-night-film-card">
                       <div className="rr-night-poster"><img src={getPoster(item.movie)} alt={`${item.movie.title} poster`} loading="lazy" data-testid={`img-plan-poster-${item.movie.id}`} /></div>
-                      <div className="rr-night-film-copy"><div className="rr-night-film-meta"><span>FILM {String(item.index + 1).padStart(2, "0")}</span><span>{item.movie.year}</span><span>{formatDuration(item.runtime)}</span></div><h3 data-testid={`text-plan-movie-${item.movie.id}`}>{item.movie.title}</h3><p className="rr-night-director">{item.movie.director}</p><p className="rr-night-reason" data-testid={`text-plan-reason-${item.movie.id}`}>{item.reason}</p>
+                      <div className="rr-night-film-copy"><div className="rr-night-film-meta"><span>FILM {String(item.index + 1).padStart(2, "0")}</span>{item.movie.year > 0 && <span>{item.movie.year}</span>}<span>{formatDuration(item.runtime)}</span></div><h3 data-testid={`text-plan-movie-${item.movie.id}`}>{item.movie.title}</h3><p className="rr-night-director">{item.movie.director}</p><p className="rr-night-reason" data-testid={`text-plan-reason-${item.movie.id}`}>{item.reason}</p>
                         <div className="rr-night-film-actions">
                           <button type="button" className="rr-night-text-action" disabled={isReplacing} data-testid={`button-replace-film-${item.movie.id}`} onClick={() => replaceFilm(item.movie.id)}>{isReplacing && replaceTarget === item.movie.id ? "Finding another..." : "Replace film"}</button>
                           <button type="button" className={`rr-night-text-action ${watchlistIds.includes(item.movie.id) ? "is-saved" : ""}`} disabled={watchlistIds.includes(item.movie.id)} data-testid={`button-add-watchlist-${item.movie.id}`} onClick={() => onAddToWatchlist(item.movie.id)}><BookmarkPlus size={14} />{watchlistIds.includes(item.movie.id) ? "In watchlist" : "Add to watchlist"}</button>

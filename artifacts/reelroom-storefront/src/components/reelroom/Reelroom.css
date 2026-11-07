@@ -1819,3 +1819,173 @@
 
   .reelroom .rr-topline strong { margin-right: 0; }
 }
+
+.reelroom .rr-mobile-signup { display: none; }
+.reelroom .rr-account-control { position: relative; flex: 0 0 auto; }
+.reelroom .rr-account-toggle {
+  max-width: 170px;
+  overflow: hidden;
+  padding: 8px 10px;
+  border: 1px solid var(--rr-line);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--rr-text);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.reelroom .rr-account-toggle:hover { border-color: var(--rr-green); color: var(--rr-green); }
+.reelroom .rr-account-menu {
+  position: absolute;
+  z-index: 40;
+  top: calc(100% + 8px);
+  right: 0;
+  display: grid;
+  min-width: 180px;
+  padding: 6px;
+  border: 1px solid var(--rr-line);
+  border-radius: 10px;
+  background: #1c2229;
+  box-shadow: 0 16px 36px rgba(0, 0, 0, .38);
+}
+.reelroom .rr-account-menu button {
+  padding: 10px 11px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: #d5dbe0;
+  text-align: left;
+  font-size: 11px;
+}
+.reelroom .rr-account-menu button:hover { background: rgba(255, 255, 255, .06); color: var(--rr-green); }
+.reelroom .rr-signup-link { white-space: nowrap; }
+.reelroom .rr-auth-page {
+  display: grid;
+  min-height: min(690px, calc(100vh - 150px));
+  place-items: center;
+  padding-top: 38px;
+  padding-bottom: 56px;
+}
+.reelroom .rr-auth-card,
+.reelroom .rr-account-card {
+  width: min(100%, 540px);
+  margin: 0 auto;
+  padding: clamp(22px, 5vw, 38px);
+  border: 1px solid var(--rr-line);
+  border-radius: 14px;
+  background:
+    radial-gradient(ellipse at 100% 0, rgba(0, 224, 84, .08), transparent 44%),
+    var(--rr-panel);
+}
+.reelroom .rr-auth-card h1 {
+  margin: 12px 0 10px;
+  font: 600 clamp(30px, 5vw, 42px)/1.08 "Space Grotesk", sans-serif;
+  letter-spacing: -.04em;
+}
+.reelroom .rr-auth-card > p { color: var(--rr-muted); font-size: 12px; }
+.reelroom .rr-auth-form { display: grid; gap: 15px; margin-top: 24px; }
+.reelroom .rr-auth-form label,
+.reelroom .rr-account-card label { display: grid; gap: 7px; color: #d7dde1; font-size: 11px; }
+.reelroom .rr-password-field { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; }
+.reelroom .rr-password-field button {
+  min-width: 54px;
+  padding: 0 9px;
+  border: 1px solid var(--rr-line);
+  border-radius: 8px;
+  background: #161b20;
+  color: var(--rr-muted);
+  font-size: 10px;
+}
+.reelroom .rr-password-field button:hover { color: var(--rr-green); }
+.reelroom .rr-auth-notice,
+.reelroom .rr-auth-error {
+  margin-top: 16px;
+  padding: 11px 13px;
+  border: 1px solid rgba(0, 224, 84, .3);
+  border-radius: 8px;
+  background: rgba(0, 224, 84, .07);
+  color: #c9f3d7;
+  font-size: 11px;
+}
+.reelroom .rr-auth-error { border-color: rgba(255, 128, 0, .36); background: rgba(255, 128, 0, .07); color: #ffd5ad; }
+.reelroom .rr-auth-links {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  margin-top: 18px;
+  color: var(--rr-muted);
+  font-size: 10px;
+}
+.reelroom .rr-auth-links button,
+.reelroom .rr-text-link.rr-auth-back {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--rr-green);
+  cursor: pointer;
+  font-size: 10px;
+}
+.reelroom .rr-auth-fineprint { margin-top: 24px !important; padding-top: 15px; border-top: 1px solid var(--rr-line); font-size: 9px !important; }
+.reelroom .rr-account-summary { display: grid; gap: 5px; margin-bottom: 22px; }
+.reelroom .rr-account-summary strong { overflow-wrap: anywhere; font-size: 13px; }
+.reelroom .rr-account-card .rr-form { display: grid; gap: 16px; }
+.reelroom .rr-account-order-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding-bottom: 12px; }
+.reelroom .rr-account-order-heading h2 { margin-top: 4px; color: var(--rr-green); font: 600 17px "Space Grotesk", sans-serif; }
+.reelroom .rr-account-order-heading > span { color: var(--rr-muted); font-size: 10px; }
+.reelroom .rr-order-list article { padding: 16px; margin-bottom: 14px; border: 1px solid var(--rr-line); background: var(--rr-panel); }
+.reelroom .rr-account-alert {
+  position: relative;
+  z-index: 15;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin-top: 12px;
+  padding: 10px 13px;
+  border: 1px solid rgba(255, 128, 0, .3);
+  border-left: 3px solid var(--rr-orange);
+  border-radius: 8px;
+  background: #211c17;
+  color: #f2d2b5;
+  font-size: 11px;
+}
+.reelroom .rr-account-alert button { display: grid; flex: 0 0 auto; place-items: center; padding: 4px; border: 0; background: none; color: inherit; }
+.reelroom .rr-catalog-status { min-height: 48vh; padding-top: 18px; padding-bottom: 50px; }
+.reelroom .rr-catalog-skeleton {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--rr-line);
+  border-radius: 10px;
+  background: var(--rr-panel);
+}
+.reelroom .rr-catalog-skeleton span {
+  display: block;
+  height: 9px;
+  border-radius: 5px;
+  background: linear-gradient(90deg, #222a33, #303a44, #222a33);
+  background-size: 200% 100%;
+  animation: rr-catalog-shimmer 1.3s ease-in-out infinite;
+}
+.reelroom .rr-catalog-skeleton span:first-child { height: 155px; }
+.reelroom .rr-catalog-skeleton span:last-child { width: 58%; }
+@keyframes rr-catalog-shimmer { to { background-position: -200% 0; } }
+
+@media (max-width: 1120px) {
+  .reelroom .rr-mobile-signup { display: block; }
+}
+
+@media (max-width: 720px) {
+  .reelroom .rr-account-toggle { max-width: 96px; padding: 7px 8px; }
+  .reelroom .rr-signup-link { display: none; }
+  .reelroom .rr-auth-page { min-height: calc(100svh - 148px); padding-top: 26px; padding-bottom: 38px; }
+  .reelroom .rr-auth-card,
+  .reelroom .rr-account-card { border-radius: 11px; }
+  .reelroom .rr-catalog-skeleton span:first-child { height: 125px; }
+  .reelroom .rr-account-order-heading { align-items: flex-start; flex-direction: column; gap: 6px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reelroom .rr-catalog-skeleton span { animation: none; }
+}
