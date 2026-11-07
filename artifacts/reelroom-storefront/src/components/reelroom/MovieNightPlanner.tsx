@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type DragEvent, type FormEvent } from "react";
-import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, BookmarkPlus, Clock3, Film, GripVertical, RotateCw, Sparkles } from "lucide-react";
+import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, BookmarkPlus, Clock3, Film, GripVertical, RotateCw, Search, Sparkles, X } from "lucide-react";
 import { useCreateMovieNightPlan } from "@workspace/api-client-react";
 import type { MovieNightCandidate, MovieNightPlanResponse, MovieNightRequest, MovieNightRequestMoodsItem, MovieNightRequestViewingExperience } from "@workspace/api-client-react";
 import { fetchCinemetaMovie } from "../../lib/cinemeta";
@@ -9,6 +9,8 @@ type PlannerMovie = {
   id: string;
   title: string;
   year: number;
+  releaseDate?: string | null;
+  releaseInfo?: string | null;
   genre: string;
   genres?: string[];
   runtime: number;
@@ -35,6 +37,10 @@ type PreferenceValues = {
   notes: string;
   startTime: string;
 };
+type RetryAction =
+  | { type: "plan"; excludeCurrentFilms: boolean }
+  | { type: "replace"; movieId: string }
+  | null;
 
 export type MovieNightPlannerProps = {
   movies: PlannerMovie[];
@@ -74,6 +80,39 @@ const DEFAULT_PREFERENCES: PreferenceValues = {
   notes: "",
   startTime: "19:30",
 };
+const LOADING_MESSAGES = [
+  "Reading your mood…",
+  "Exploring your preferences…",
+  "Picking the perfect films…",
+  "Building your movie night…",
+  "Adding the finishing touches…",
+];
+
+function getValidReleaseYear(value: unknown): number | null {
+  const candidate = typeof value === "number"
+    ? (Number.isInteger(value) ? String(value) : "")
+    : typeof value === "string"
+      ? value.trim()
+      : "";
+  const match = candidate.match(/\b\d{4}\b/);
+  if (!match) return null;
+  const year = Number(match[0]);
+  return year >= 1000 && year <= 9999 ? year : null;
+}
+
+function getMovieReleaseYear(movie: PlannerMovie): number | null {
+  return getValidReleaseYear(movie.year)
+    ?? getValidReleaseYear(movie.releaseDate)
+    ?? getValidReleaseYear(movie.releaseInfo);
+}
+
+function normalizeMovieTitle(title: string): string {
+  return title.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
+function getMovieIdentity(movie: PlannerMovie): string {
+  return `${normalizeMovieTitle(movie.title)}:${getMovieReleaseYear(movie) ?? "unknown"}`;
+}
 
 function formatClock(minutes: number): string {
   const normalized = ((minutes % 1440) + 1440) % 1440;
@@ -113,10 +152,50 @@ export function MovieNightPlanner({ movies, watchlistIds, onAddToWatchlist }: Mo
   const [draggedId, setDraggedId] = useState<string | null>(null);
   const [isReplacing, setIsReplacing] = useState(false);
   const [isPreparing, setIsPreparing] = useState(false);
+  const [loadingStage, setLoadingStage] = useState(0);
+  const [excludeSearch, setExcludeSearch] = useState("");
+  const [excludeDropdownOpen, setExcludeDropdownOpen] = useState(false);
+  const [activeExcludedIndex, setActiveExcludedIndex] = useState(-1);
+  const [retryAction, setRetryAction] = useState<RetryAction>(null);
+  const excludePickerRef = useRef<HTMLDivElement>(null);
   const planningRef = useRef(false);
 
   const movieById = useMemo(() => new Map(movies.map((movie) => [movie.id, movie])), [movies]);
   const genres = useMemo(() => Array.from(new Set(movies.flatMap((movie) => movie.genres?.length ? movie.genres : [movie.genre]).filter(Boolean))).sort(), [movies]);
+  const planning = isPreparing || planMutation.isPending;
+  const loading = planning || isReplacing;
+  const excludedMovies = useMemo(() => {
+    const seen = new Set<string>();
+    return preferences.avoidIds.flatMap((id) => {
+      const movie = movieById.get(id);
+      if (!movie) return [];
+      const identity = getMovieIdentity(movie);
+      if (seen.has(identity)) return [];
+      seen.add(identity);
+      return [movie];
+    });
+  }, [movieById, preferences.avoidIds]);
+  const excludedIds = useMemo(() => new Set(preferences.avoidIds), [preferences.avoidIds]);
+  const excludedIdentities = useMemo(
+    () => new Set(excludedMovies.map(getMovieIdentity)),
+    [excludedMovies],
+  );
+  const exclusionMatches = useMemo(() => {
+    const term = normalizeMovieTitle(excludeSearch.trim());
+    if (!term) return [];
+    const seen = new Set<string>();
+    return movies.filter((movie) => {
+      const identity = getMovieIdentity(movie);
+      if (
+        !normalizeMovieTitle(movie.title).includes(term) ||
+        excludedIds.has(movie.id) ||
+        excludedIdentities.has(identity) ||
+        seen.has(identity)
+      ) return false;
+      seen.add(identity);
+      return true;
+    }).slice(0, 9);
+  }, [excludedIdentities, excludedIds, excludeSearch, movies]);
   const selectedDuration = preferences.duration === "custom" ? preferences.customDuration : Number(preferences.duration);
   const availableDuration = Math.max(60, Math.min(1440, Number.isFinite(selectedDuration) ? selectedDuration : 60));
   const startMinutes = (() => {
@@ -155,6 +234,34 @@ export function MovieNightPlanner({ movies, watchlistIds, onAddToWatchlist }: Mo
       return changed ? next : current;
     });
   }, [availableDuration, totalFilmRuntime]);
+
+  useEffect(() => {
+    if (!planning) {
+      setLoadingStage(0);
+      return;
+    }
+    setLoadingStage(0);
+    const timer = window.setInterval(() => {
+      setLoadingStage((current) => Math.min(current + 1, LOADING_MESSAGES.length - 1));
+    }, 4200);
+    return () => window.clearInterval(timer);
+  }, [planning]);
+
+  useEffect(() => {
+    if (!excludeDropdownOpen) return;
+    const closeOnOutsidePointer = (event: PointerEvent) => {
+      if (!excludePickerRef.current?.contains(event.target as Node)) setExcludeDropdownOpen(false);
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setExcludeDropdownOpen(false);
+    };
+    document.addEventListener("pointerdown", closeOnOutsidePointer);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("pointerdown", closeOnOutsidePointer);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [excludeDropdownOpen]);
 
   function toggleItem<T>(list: T[], item: T): T[] {
     return list.includes(item) ? list.filter((value) => value !== item) : [...list, item];
@@ -196,16 +303,17 @@ export function MovieNightPlanner({ movies, watchlistIds, onAddToWatchlist }: Mo
     const moodGenreNames = new Set(preferences.moods.flatMap((mood) => moodGenres[mood] ?? []));
     const preferredDirectorNames = preferences.directors.split(",").map((name) => name.trim().toLowerCase()).filter(Boolean);
     const eligible = movies
-      .filter((movie) => !preferences.avoidIds.includes(movie.id) && movie.year >= 1888)
+      .filter((movie) => !preferences.avoidIds.includes(movie.id) && getMovieReleaseYear(movie) !== null)
       .sort((first, second) => {
         const score = (movie: PlannerMovie) => {
+          const year = getMovieReleaseYear(movie) ?? 0;
           const movieGenres = (movie.genres?.length ? movie.genres : [movie.genre]).map((genre) => genre.toLowerCase());
           let value = movieGenres.reduce((sum, genre) => {
             return sum + (preferredGenreNames.has(genre) ? 4 : 0) + (moodGenreNames.has(genre) ? 2 : 0);
           }, 0);
           const director = movie.director.toLowerCase();
           if (preferredDirectorNames.some((name) => director.includes(name) || name.includes(director))) value += 4;
-          if (preferences.decades.includes(Math.floor(movie.year / 10) * 10)) value += 2;
+          if (preferences.decades.includes(Math.floor(year / 10) * 10)) value += 2;
           if (movie.runtime > 0 && movie.runtime <= availableDuration) value += 1;
           return value;
         };
@@ -227,7 +335,7 @@ export function MovieNightPlanner({ movies, watchlistIds, onAddToWatchlist }: Mo
         candidateResults[index] = {
           id: movie.id,
           title: movie.title,
-          year: movie.year,
+          year: getMovieReleaseYear(movie) ?? 0,
           genres: movie.genres?.length ? movie.genres : [movie.genre].filter(Boolean),
           director: movie.director ?? "",
           synopsis: (movie.synopsis ?? "").slice(0, 700),
@@ -277,6 +385,7 @@ export function MovieNightPlanner({ movies, watchlistIds, onAddToWatchlist }: Mo
     planningRef.current = true;
     setIsPreparing(true);
     setError("");
+    setRetryAction(null);
     try {
       const request = await buildRequest();
       if (!request.candidates.length) {
@@ -288,14 +397,22 @@ export function MovieNightPlanner({ movies, watchlistIds, onAddToWatchlist }: Mo
       request.customBreakMinutes = request.breakMinutes;
       rememberRuntimes(request);
       const response = await planMutation.mutateAsync({ data: request });
-      const validRecommendations = response.recommendations.filter((item) => movieById.has(item.movieId));
+      const blockedIds = new Set(request.avoidMovieIds);
+      const includedIds = new Set<string>();
+      const validRecommendations = response.recommendations.filter((item) => {
+        if (!movieById.has(item.movieId) || blockedIds.has(item.movieId) || includedIds.has(item.movieId)) return false;
+        includedIds.add(item.movieId);
+        return true;
+      }).slice(0, request.maxMovies);
       setPlan({ ...response, recommendations: validRecommendations });
       setFilms(validRecommendations.map((item) => ({ movieId: item.movieId, reason: item.reason })));
       setBreaks((current) => Array(Math.max(0, validRecommendations.length - 1)).fill(0).map((_, index) => current[index] ?? 0));
       setShowPreferences(false);
       setReplaceTarget(null);
+      setRetryAction(null);
     } catch {
       setError("We couldn't build that plan just now. Your preferences are saved; try again.");
+      setRetryAction({ type: "plan", excludeCurrentFilms });
     } finally {
       planningRef.current = false;
       setIsPreparing(false);
@@ -306,6 +423,7 @@ export function MovieNightPlanner({ movies, watchlistIds, onAddToWatchlist }: Mo
     setReplaceTarget(movieId);
     setIsReplacing(true);
     setError("");
+    setRetryAction(null);
     try {
       const data = await buildRequest();
       if (!data.candidates.length) {
@@ -339,8 +457,10 @@ export function MovieNightPlanner({ movies, watchlistIds, onAddToWatchlist }: Mo
       }
       setFilms((current) => current.map((item) => item.movieId === movieId ? { movieId: replacement.movieId, reason: replacement.reason } : item));
       setReplaceTarget(null);
+      setRetryAction(null);
     } catch {
       setError("That film couldn't be replaced right now. Your current plan is unchanged.");
+      setRetryAction({ type: "replace", movieId });
     } finally {
       setIsReplacing(false);
     }
@@ -375,7 +495,93 @@ export function MovieNightPlanner({ movies, watchlistIds, onAddToWatchlist }: Mo
     setDraggedId(null);
   }
 
-  const loading = planMutation.isPending || isPreparing || isReplacing;
+  function addExcludedMovie(movieId: string) {
+    const movie = movieById.get(movieId);
+    if (!movie || excludedIds.has(movieId) || excludedIdentities.has(getMovieIdentity(movie))) return;
+    setPreferences((current) => ({ ...current, avoidIds: Array.from(new Set([...current.avoidIds, movieId])) }));
+    setExcludeSearch("");
+    setActiveExcludedIndex(-1);
+    setExcludeDropdownOpen(true);
+  }
+
+  function removeExcludedMovie(movieId: string) {
+    setPreferences((current) => ({ ...current, avoidIds: current.avoidIds.filter((id) => id !== movieId) }));
+  }
+
+  function handleExcludeSearchKeyDown(event: React.KeyboardEvent<HTMLInputElement>) {
+    if (event.key === "Escape") {
+      setExcludeDropdownOpen(false);
+      return;
+    }
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      setExcludeDropdownOpen(true);
+      setActiveExcludedIndex((current) => exclusionMatches.length
+        ? current < 0 ? 0 : (current + 1) % exclusionMatches.length
+        : -1);
+      return;
+    }
+    if (event.key === "ArrowUp") {
+      event.preventDefault();
+      setExcludeDropdownOpen(true);
+      setActiveExcludedIndex((current) => exclusionMatches.length
+        ? current <= 0 ? exclusionMatches.length - 1 : current - 1
+        : -1);
+      return;
+    }
+    if (event.key === "Home" && excludeDropdownOpen && exclusionMatches.length) {
+      event.preventDefault();
+      setActiveExcludedIndex(0);
+      return;
+    }
+    if (event.key === "End" && excludeDropdownOpen && exclusionMatches.length) {
+      event.preventDefault();
+      setActiveExcludedIndex(exclusionMatches.length - 1);
+      return;
+    }
+    if (event.key === "Enter" && excludeDropdownOpen && exclusionMatches[activeExcludedIndex]) {
+      event.preventDefault();
+      addExcludedMovie(exclusionMatches[activeExcludedIndex].id);
+    }
+  }
+
+  function retryLastRequest() {
+    if (!retryAction) return;
+    const action = retryAction;
+    setRetryAction(null);
+    if (action.type === "plan") void createPlan(undefined, action.excludeCurrentFilms);
+    else void replaceFilm(action.movieId);
+  }
+
+  function renderLoadingExperience(compact = false) {
+    return (
+      <div className={`rr-night-loading-scene ${compact ? "is-compact" : ""}`} aria-busy="true" data-testid="status-movie-night-loading">
+        <div className="rr-night-projector" aria-hidden="true">
+          <span className="rr-night-reel"><i /><i /><i /></span>
+          <span className="rr-night-projector-body"><i /></span>
+          <span className="rr-night-filmstrip"><i /><i /><i /><i /><i /></span>
+          <span className="rr-night-projector-beam" />
+        </div>
+        <div className="rr-night-loading-copy">
+          <span className="rr-night-loading-overline">REELROOM / IN THE PROJECTION BOOTH</span>
+          <p className="rr-night-loading-message" key={loadingStage} role="status" aria-live="polite">{LOADING_MESSAGES[loadingStage]}</p>
+          <div className="rr-night-loading-stages" aria-label={`Step ${loadingStage + 1} of ${LOADING_MESSAGES.length}`}>
+            {LOADING_MESSAGES.map((message, index) => (
+              <span key={message} className={index < loadingStage ? "is-complete" : index === loadingStage ? "is-current" : ""} aria-hidden="true" />
+            ))}
+          </div>
+          <div className="rr-night-loading-progress" role="progressbar" aria-label="Curating your movie night">
+            <span />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  function renderRetryButton() {
+    return retryAction ? <button type="button" className="rr-night-secondary rr-night-retry" data-testid="button-retry-movie-night" onClick={retryLastRequest}>Try Again</button> : null;
+  }
+
   const movieCountText = movies.length === 1 ? "1 film" : `${movies.length} films`;
 
   return (
@@ -432,15 +638,74 @@ export function MovieNightPlanner({ movies, watchlistIds, onAddToWatchlist }: Mo
                 <label className="rr-night-field"><span>Favorite directors <small>Separate names with commas</small></span><input className="rr-night-input" value={preferences.directors} maxLength={500} placeholder="e.g. Agnès Varda, Wong Kar-wai" data-testid="input-favorite-directors" onChange={(event) => setPreferences((current) => ({ ...current, directors: event.target.value }))} /></label>
                 <div><span className="rr-night-label">Preferred decades</span><div className="rr-night-chips rr-night-decade-list">{DECADES.map((decade) => <button type="button" key={decade} className={`rr-night-chip ${preferences.decades.includes(decade) ? "is-selected" : ""}`} aria-pressed={preferences.decades.includes(decade)} data-testid={`button-decade-${decade}`} onClick={() => setPreferences((current) => ({ ...current, decades: toggleItem(current.decades, decade) }))}>{decade}s</button>)}</div></div>
               </div>
-              <label className="rr-night-field rr-night-avoid"><span>Films to leave out <small>Choose any titles you would rather skip tonight.</small></span><select className="rr-night-input rr-night-multi" multiple value={preferences.avoidIds} data-testid="select-movies-to-avoid" onChange={(event) => setPreferences((current) => ({ ...current, avoidIds: Array.from(event.target.selectedOptions, (option) => option.value) }))}>{movies.map((movie) => <option key={movie.id} value={movie.id}>{movie.title} ({movie.year})</option>)}</select></label>
+              <div className="rr-night-field rr-night-avoid" ref={excludePickerRef}>
+                <label htmlFor="movie-exclusions-search">Films to leave out <small>Choose any titles you would rather skip tonight.</small></label>
+                <div className="rr-night-exclusion-control">
+                  <div className="rr-night-exclusion-search">
+                    <Search size={16} aria-hidden="true" />
+                    <input
+                      id="movie-exclusions-search"
+                      type="search"
+                      className="rr-night-input"
+                      role="combobox"
+                      aria-autocomplete="list"
+                      aria-expanded={excludeDropdownOpen}
+                      aria-controls="movie-exclusion-options"
+                      aria-activedescendant={excludeDropdownOpen && activeExcludedIndex >= 0 && exclusionMatches[activeExcludedIndex] ? `movie-exclusion-option-${exclusionMatches[activeExcludedIndex].id}` : undefined}
+                      placeholder="Search movies to exclude…"
+                      autoComplete="off"
+                      value={excludeSearch}
+                      data-testid="input-movies-to-avoid-search"
+                      onFocus={() => setExcludeDropdownOpen(true)}
+                      onClick={() => setExcludeDropdownOpen(true)}
+                      onChange={(event) => { setExcludeSearch(event.target.value); setActiveExcludedIndex(-1); setExcludeDropdownOpen(true); }}
+                      onKeyDown={handleExcludeSearchKeyDown}
+                    />
+                  </div>
+                  {excludeDropdownOpen && (
+                    <div className="rr-night-exclusion-dropdown" id="movie-exclusion-options" role="listbox" aria-label="Movies to exclude" aria-multiselectable="true">
+                      {!excludeSearch.trim() ? <p className="rr-night-exclusion-empty">Type a movie title to search your collection.</p>
+                        : exclusionMatches.length === 0 ? <p className="rr-night-exclusion-empty">No matching movies found</p>
+                          : exclusionMatches.map((movie, index) => {
+                            const year = getMovieReleaseYear(movie);
+                            return (
+                              <div
+                                id={`movie-exclusion-option-${movie.id}`}
+                                key={movie.id}
+                                className={`rr-night-exclusion-option ${index === activeExcludedIndex ? "is-active" : ""}`}
+                                role="option"
+                                aria-selected="false"
+                                onMouseEnter={() => setActiveExcludedIndex(index)}
+                                onMouseDown={(event) => event.preventDefault()}
+                                onClick={() => addExcludedMovie(movie.id)}
+                              >
+                                <span>{movie.title}</span>
+                                {year !== null && <small>{year}</small>}
+                                <span className="rr-night-exclusion-add" aria-hidden="true">+</span>
+                              </div>
+                            );
+                          })}
+                    </div>
+                  )}
+                </div>
+                <div className="rr-night-excluded-chips" aria-label="Excluded movies">
+                  {excludedMovies.length ? excludedMovies.map((movie) => (
+                    <span className="rr-night-excluded-chip" key={movie.id}>
+                      <span>{movie.title}{getMovieReleaseYear(movie) !== null && <small>{getMovieReleaseYear(movie)}</small>}</span>
+                      <button type="button" aria-label={`Remove ${movie.title} from exclusions`} data-testid={`button-remove-excluded-${movie.id}`} onClick={() => removeExcludedMovie(movie.id)}><X size={13} /></button>
+                    </span>
+                  )) : <span className="rr-night-exclusion-hint">No films excluded</span>}
+                  {excludedMovies.length > 0 && <button type="button" className="rr-night-clear-exclusions" data-testid="button-clear-excluded-movies" onClick={() => setPreferences((current) => ({ ...current, avoidIds: [] }))}>Clear All</button>}
+                </div>
+              </div>
               <label className="rr-night-field rr-night-notes"><span>A note for the curator <small>Anything else the night should know?</small></span><textarea className="rr-night-input" maxLength={500} rows={3} value={preferences.notes} placeholder="Keep it under two hours, nothing too bleak..." data-testid="textarea-movie-night-note" onChange={(event) => setPreferences((current) => ({ ...current, notes: event.target.value }))} /></label>
             </section>
             <div className="rr-night-submit-row">
               <span className="rr-night-collection-note">{movieCountText} in this collection</span>
               <button className="rr-night-primary" type="submit" disabled={loading || movies.length === 0} data-testid="button-create-movie-night"><span>{loading ? "Curating your movie night..." : "Curate my night"}</span><ArrowRight size={17} /></button>
             </div>
-            {loading && <div className="rr-night-loading" role="status" aria-live="polite" data-testid="status-movie-night-loading"><span className="rr-night-loading-track"><i /></span>Curating your movie night...</div>}
-            {error && <p className="rr-night-error" role="alert" data-testid="status-movie-night-error">{error}</p>}
+            {planning && renderLoadingExperience()}
+            {error && <><p className="rr-night-error" role="alert" data-testid="status-movie-night-error">{error}</p>{renderRetryButton()}</>}
           </form>
         )}
 
@@ -477,8 +742,9 @@ export function MovieNightPlanner({ movies, watchlistIds, onAddToWatchlist }: Mo
               <button type="button" className="rr-night-secondary" data-testid="button-edit-preferences" onClick={() => { setShowPreferences(true); setError(""); }}><ArrowLeft size={15} /> Edit preferences</button>
               <button type="button" className="rr-night-primary rr-night-regenerate" disabled={loading} data-testid="button-regenerate-plan" onClick={() => createPlan(undefined, true)}><RotateCw size={15} />{loading ? "Curating your movie night..." : "Regenerate plan"}</button>
             </div>
-            {loading && <p className="rr-night-loading-inline" role="status" data-testid="status-movie-night-loading-inline">Curating your movie night...</p>}
-            {error && <p className="rr-night-error" role="alert" data-testid="status-movie-night-error-results">{error}</p>}
+            {planning && renderLoadingExperience(true)}
+            {isReplacing && <p className="rr-night-loading-inline" role="status" data-testid="status-movie-night-loading-inline">Finding a replacement film…</p>}
+            {error && <><p className="rr-night-error" role="alert" data-testid="status-movie-night-error-results">{error}</p>{renderRetryButton()}</>}
           </div>
         )}
       </div>

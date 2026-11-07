@@ -1039,6 +1039,7 @@ export function Reelroom() {
   const [manualLibraryIds, setManualLibraryIds] = useState<string[]>(() => readStored("reelroom-manual-library", []));
   const [toast, setToast] = useState("");
   const [mobileOpen, setMobileOpen] = useState(false);
+  const navContainerRef = useRef<HTMLDivElement>(null);
   const [search, setSearch] = useState("");
   const [collection, setCollection] = useState<Collection>("All films");
   const [genre, setGenre] = useState("All genres");
@@ -1085,6 +1086,23 @@ export function Reelroom() {
   useEffect(() => { saveStored("reelroom-cart", cart); }, [cart]);
   useEffect(() => { saveStored("reelroom-orders", orders); }, [orders]);
   useEffect(() => { saveStored("reelroom-manual-library", manualLibraryIds); }, [manualLibraryIds]);
+  useEffect(() => {
+    if (!mobileOpen) return;
+    const closeOnOutsidePointer = (event: PointerEvent) => {
+      if (!navContainerRef.current?.contains(event.target as Node)) setMobileOpen(false);
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      setMobileOpen(false);
+      navContainerRef.current?.querySelector<HTMLButtonElement>(".rr-menu-toggle")?.focus();
+    };
+    document.addEventListener("pointerdown", closeOnOutsidePointer);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("pointerdown", closeOnOutsidePointer);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [mobileOpen]);
   useEffect(() => {
     if (view !== "details") return;
     let active = true;
@@ -1332,9 +1350,9 @@ export function Reelroom() {
     return <>
       <div className="rr-topline"><strong>KUWAIT · KWD</strong> All prices and availability are demonstration data</div>
       <header className="rr-header">
-        <div className="rr-wrap rr-nav">
+        <div className="rr-wrap rr-nav" ref={navContainerRef}>
           <Logo onClick={() => navigate("home")}/>
-          <nav className={`rr-navlinks ${mobileOpen ? "open" : ""}`} aria-label="Main navigation">
+          <nav id="reelroom-main-navigation" className={`rr-navlinks ${mobileOpen ? "open" : ""}`} aria-label="Main navigation">
             {links.map((link) => <button key={link.target} className={`rr-navlink ${view === link.target ? "active" : ""}`} onClick={() => navigate(link.target)}>{link.label}</button>)}
             <button className={`rr-navlink ${view === "watchlist" ? "active" : ""}`} onClick={() => navigate("watchlist")}>Watchlist{watchlist.length > 0 ? ` (${watchlist.length})` : ""}</button>
             <button className="rr-navlink" onClick={() => navigate("library")}>My Library</button>
@@ -1342,7 +1360,7 @@ export function Reelroom() {
           <div className="rr-actions">
             <button className="rr-icon-btn rr-search-short" aria-label="Search movies" onClick={() => { navigate("browse"); setTimeout(() => document.getElementById("catalog-search")?.focus(), 50); }}><Search size={18}/></button>
             <button className="rr-icon-btn" aria-label={`Shopping cart, ${cartCount} items`} onClick={() => navigate("cart")}><ShoppingCart size={18}/>{cartCount > 0 && <span className="rr-count">{cartCount}</span>}</button>
-            <button className="rr-icon-btn rr-menu-toggle" aria-label={mobileOpen ? "Close menu" : "Open menu"} aria-expanded={mobileOpen} onClick={() => setMobileOpen((open) => !open)}>{mobileOpen ? <X size={20}/> : <Menu size={20}/>}</button>
+            <button className="rr-icon-btn rr-menu-toggle" aria-label={mobileOpen ? "Close menu" : "Open menu"} aria-expanded={mobileOpen} aria-controls="reelroom-main-navigation" onClick={() => setMobileOpen((open) => !open)}>{mobileOpen ? <X size={20}/> : <Menu size={20}/>}</button>
           </div>
         </div>
       </header>

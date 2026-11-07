@@ -1760,3 +1760,62 @@
     transition: none;
   }
 }
+
+/* Keep the full nav on one line until it no longer fits comfortably. */
+.reelroom .rr-nav { min-width: 0; flex-wrap: nowrap; }
+.reelroom .rr-navlinks { min-width: 0; flex-wrap: nowrap; white-space: nowrap; }
+.reelroom .rr-navlink { white-space: nowrap; }
+
+@media (max-width: 1120px) {
+  .reelroom .rr-nav {
+    position: relative;
+    min-height: 64px;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  .reelroom .rr-menu-toggle { display: inline-flex !important; }
+  .reelroom .rr-actions .rr-search-short { display: none; }
+
+  .reelroom .rr-navlinks {
+    position: absolute;
+    z-index: 25;
+    top: 100%;
+    right: 0;
+    left: 0;
+    display: none;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 2px;
+    max-height: calc(100svh - 128px);
+    overflow-x: hidden;
+    overflow-y: auto;
+    margin: 0;
+    padding: 10px;
+    border: 1px solid var(--rr-line);
+    border-top: 0;
+    border-radius: 0 0 10px 10px;
+    background: #14181c;
+    box-shadow: 0 16px 30px rgba(0, 0, 0, .35);
+    white-space: normal;
+  }
+
+  .reelroom .rr-navlinks.open { display: flex; }
+  .reelroom .rr-navlink { width: 100%; padding: 10px 12px; text-align: left; white-space: normal; }
+}
+
+@media (max-width: 720px) {
+  .reelroom .rr-topline {
+    height: auto;
+    min-height: 32px;
+    flex-wrap: wrap;
+    gap: 2px 4px;
+    padding: 5px 8px;
+    font-size: 7px;
+    letter-spacing: .06em;
+    line-height: 1.25;
+    text-align: center;
+  }
+
+  .reelroom .rr-topline strong { margin-right: 0; }
+}
