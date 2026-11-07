@@ -1831,7 +1831,15 @@ export function Reelroom() {
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : "Sign-in could not be completed.";
-      setAuthError(/invalid login credentials/i.test(message)
+      const code = error && typeof error === "object" && "code" in error
+        ? String((error as { code?: unknown }).code ?? "")
+        : "";
+      const authError = `${code} ${message}`;
+      setAuthError(/over_email_send_rate_limit|email rate limit exceeded/i.test(authError)
+        ? "Supabase has hit this project’s built-in email sending limit. Wait for it to reset, or configure custom SMTP for signup and recovery emails."
+        : /email_address_not_authorized/i.test(authError)
+          ? "Supabase’s built-in email service only sends to project team addresses. Configure custom SMTP for public signups."
+        : /invalid login credentials/i.test(message)
         ? "Email or password is incorrect."
         : /email address.*invalid|invalid email/i.test(message)
           ? "That email address was rejected. Check it and try again."
