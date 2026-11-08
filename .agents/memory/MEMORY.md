@@ -1,1 +1,1 @@
-- [Supabase email confirmation](supabase-email-confirmation.md) — REELROOM signups require Supabase email confirmation; credentials stay in Auth and names in profiles.
+- [REELROOM Supabase signup](supabase-email-confirmation.md) — Use email/password with confirmation disabled; Supabase Auth owns credentials and profiles store display names.
