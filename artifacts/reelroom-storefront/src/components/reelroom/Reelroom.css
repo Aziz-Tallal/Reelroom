@@ -1908,6 +1908,41 @@
   font-size: 11px;
 }
 .reelroom .rr-auth-error { border-color: rgba(255, 128, 0, .36); background: rgba(255, 128, 0, .07); color: #ffd5ad; }
+.reelroom .rr-auth-state-icon {
+  width: 58px;
+  height: 58px;
+  display: grid;
+  place-items: center;
+  margin-bottom: 18px;
+  border: 1px solid rgba(0, 224, 84, .38);
+  border-radius: 50%;
+  background: rgba(0, 224, 84, .08);
+  color: var(--rr-green);
+}
+.reelroom .rr-auth-state-icon.success {
+  border-color: rgba(0, 224, 84, .55);
+  background: rgba(0, 224, 84, .13);
+  box-shadow: 0 0 28px rgba(0, 224, 84, .12);
+}
+.reelroom .rr-auth-confirm-email {
+  display: grid;
+  gap: 4px;
+  margin-top: 18px;
+  padding: 13px 14px;
+  border: 1px solid var(--rr-line);
+  border-radius: 9px;
+  background: rgba(255, 255, 255, .025);
+}
+.reelroom .rr-auth-confirm-email span { color: var(--rr-muted); font-size: 10px; }
+.reelroom .rr-auth-confirm-email strong { overflow-wrap: anywhere; font-size: 13px; }
+.reelroom .rr-auth-confirm-help { margin-top: 14px !important; }
+.reelroom .rr-auth-signup-hint { margin-top: 1px !important; font-size: 10px !important; }
+.reelroom .rr-auth-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 20px;
+}
 .reelroom .rr-auth-links {
   display: flex;
   flex-wrap: wrap;

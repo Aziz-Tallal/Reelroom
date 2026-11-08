@@ -1,0 +1,1 @@
+- [Supabase email confirmation](supabase-email-confirmation.md) — REELROOM signups require Supabase email confirmation; credentials stay in Auth and names in profiles.

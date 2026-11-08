@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState, useCallback, type CSSProperties, type FormEvent, type PointerEvent as ReactPointerEvent, type ReactNode, type TransitionEvent as ReactTransitionEvent } from "react";
 import {
   ArrowDownRight, ArrowLeft, ArrowRight, Check, CheckCircle2,
-  Clapperboard, Film, Heart, Menu, Minus, Play, Plus, RotateCcw, Search,
+  Clapperboard, Film, Heart, MailCheck, Menu, Minus, Play, Plus, RotateCcw, Search,
   ShoppingBag, ShoppingCart, Trash2, X,
 } from "lucide-react";
 import {
@@ -66,6 +66,12 @@ const EMPTY_MOVIE: Movie = {
   id: "", title: "", year: 0, genre: "", runtime: 0, director: "", synopsis: "",
   palette: ["#202629", "#8b9c91"], platforms: [], variants: [],
 };
+
+function getEmailConfirmationRedirectUrl() {
+  const redirectUrl = new URL(import.meta.env.BASE_URL, window.location.origin);
+  redirectUrl.searchParams.set("auth", "confirmed");
+  return redirectUrl.toString();
+}
 
 function mapProductToMovie(product: ProductRecord, variants: ProductVariantRecord[]): Movie {
   const productVariants = variants.filter((variant) => variant.product_id === product.id && variant.available);
@@ -1164,10 +1170,11 @@ export function Reelroom() {
   const [manualLibraryIds, setManualLibraryIds] = useState<string[]>(() => readStored("reelroom-manual-library", []));
   const [authUser, setAuthUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<ProfileRecord | null>(null);
-  const [authMode, setAuthMode] = useState<"login" | "signup" | "forgot" | "reset" | "verify">("login");
+  const [authMode, setAuthMode] = useState<"login" | "signup" | "forgot" | "reset" | "verify" | "confirmed">("login");
   const [authReturnView, setAuthReturnView] = useState<View>("home");
   const [authError, setAuthError] = useState("");
   const [authNotice, setAuthNotice] = useState("");
+  const [pendingConfirmationEmail, setPendingConfirmationEmail] = useState("");
   const [authBusy, setAuthBusy] = useState(false);
   const [orderSubmitting, setOrderSubmitting] = useState(false);
   const [authPasswordVisible, setAuthPasswordVisible] = useState(false);
@@ -1177,6 +1184,7 @@ export function Reelroom() {
   const [cartHydratedFor, setCartHydratedFor] = useState<string | null>(null);
   const [profileSaving, setProfileSaving] = useState(false);
   const currentUserIdRef = useRef<string | null>(null);
+  const confirmationReturnRef = useRef(new URLSearchParams(window.location.search).get("auth") === "confirmed");
   const [toast, setToast] = useState("");
   const [mobileOpen, setMobileOpen] = useState(false);
   const navContainerRef = useRef<HTMLDivElement>(null);
@@ -1226,6 +1234,20 @@ export function Reelroom() {
     return prices.length ? Math.min(...prices) : Number.POSITIVE_INFINITY;
   };
 
+  const showEmailConfirmationSuccess = useCallback((user: User | null) => {
+    if (!confirmationReturnRef.current || !user) return;
+    confirmationReturnRef.current = false;
+    setPendingConfirmationEmail(user.email ?? "");
+    setAuthMode("confirmed");
+    setAuthError("");
+    setAuthNotice("");
+    setAuthReturnView("home");
+    setView("auth");
+    const callbackUrl = new URL(window.location.href);
+    callbackUrl.searchParams.delete("auth");
+    window.history.replaceState(window.history.state, "", `${callbackUrl.pathname}${callbackUrl.search}${callbackUrl.hash}`);
+  }, []);
+
   const loadCatalog = useCallback(async (silent = false) => {
     if (!silent) {
       setCatalogStatus("loading");
@@ -1269,6 +1291,23 @@ export function Reelroom() {
 
   useEffect(() => {
     let active = true;
+    const callbackParams = new URLSearchParams(window.location.search);
+    const callbackError = callbackParams.get("auth") === "confirmed"
+      ? callbackParams.get("error_code") || callbackParams.get("error")
+      : null;
+    if (callbackError) {
+      const callbackDescription = callbackParams.get("error_description") ?? "";
+      setAuthMode("verify");
+      setAuthError(/expired|otp_expired/i.test(`${callbackError} ${callbackDescription}`)
+        ? "This confirmation link has expired. Create your account again to request a new link."
+        : "We couldn’t confirm this email link. Create your account again to request a new one.");
+      setAuthNotice("");
+      setView("auth");
+      confirmationReturnRef.current = false;
+      const callbackUrl = new URL(window.location.href);
+      ["auth", "error", "error_code", "error_description", "error_uri"].forEach((key) => callbackUrl.searchParams.delete(key));
+      window.history.replaceState(window.history.state, "", `${callbackUrl.pathname}${callbackUrl.search}${callbackUrl.hash}`);
+    }
     let client: ReturnType<typeof getSupabaseClient>;
     try {
       client = getSupabaseClient();
@@ -1295,6 +1334,7 @@ export function Reelroom() {
         }
       }
       setAuthUser(nextUser);
+      showEmailConfirmationSuccess(nextUser);
       if (event === "PASSWORD_RECOVERY") {
         setAuthMode("reset");
         setAuthError("");
@@ -1303,7 +1343,11 @@ export function Reelroom() {
       }
     });
     void client.auth.getSession().then(({ data }) => {
-      if (active) setAuthUser(data.session?.user ?? null);
+      if (active) {
+        const sessionUser = data.session?.user ?? null;
+        setAuthUser(sessionUser);
+        showEmailConfirmationSuccess(sessionUser);
+      }
     }).catch(() => {
       if (active) setAuthError("Unable to check your saved sign-in session.");
     });
@@ -1311,7 +1355,7 @@ export function Reelroom() {
       active = false;
       subscription.unsubscribe();
     };
-  }, []);
+  }, [showEmailConfirmationSuccess]);
 
   useEffect(() => { if (!authUser || catalogStatus !== "ready") return; 
     let active = true;
@@ -1765,6 +1809,41 @@ export function Reelroom() {
       setOrderSubmitting(false);
     }
   };
+  const resendConfirmation = async () => {
+    const email = pendingConfirmationEmail.trim();
+    if (!email) {
+      setAuthMode("signup");
+      setAuthError("Enter your details again to request a new confirmation email.");
+      setAuthNotice("");
+      return;
+    }
+    setAuthBusy(true);
+    setAuthError("");
+    setAuthNotice("");
+    try {
+      const { error } = await getSupabaseClient().auth.resend({
+        type: "signup",
+        email,
+        options: { emailRedirectTo: getEmailConfirmationRedirectUrl() },
+      });
+      if (error) throw error;
+      setAuthNotice(`A new confirmation email was sent to ${email}. Check your inbox and spam folder.`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "";
+      const code = error && typeof error === "object" && "code" in error
+        ? String((error as { code?: unknown }).code ?? "")
+        : "";
+      const authError = `${code} ${message}`;
+      setAuthError(/over_email_send_rate_limit|email rate limit exceeded/i.test(authError)
+        ? "Too many confirmation emails were requested. Wait a little while before trying again."
+        : /email_address_not_authorized/i.test(authError)
+          ? "Supabase’s built-in email service only sends to project team addresses. Configure an email provider for public signups."
+          : "We couldn’t resend the confirmation email. Please try again later.");
+    } finally {
+      setAuthBusy(false);
+    }
+  };
+
   const submitAuth = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
@@ -1801,7 +1880,7 @@ export function Reelroom() {
           password,
           options: {
             data: { display_name: displayName },
-            emailRedirectTo: `${window.location.origin}${import.meta.env.BASE_URL}`,
+            emailRedirectTo: getEmailConfirmationRedirectUrl(),
           },
         });
         if (error) throw error;
@@ -1809,8 +1888,9 @@ export function Reelroom() {
           setAuthNotice("Your account is ready.");
           navigate(authReturnView);
         } else {
+          setPendingConfirmationEmail(email);
           setAuthMode("verify");
-          setAuthNotice(`Check ${email} for the confirmation link to finish creating your account.`);
+          setAuthNotice(`We sent a confirmation link to ${email}. Confirm your email to activate your REELROOM account.`);
         }
       } else if (authMode === "login") {
         const { error } = await client.auth.signInWithPassword({ email, password });
@@ -2367,14 +2447,43 @@ export function Reelroom() {
     </main>;
 
   const renderAuth = () => <main className="rr-wrap rr-auth-page">
-    <section className="rr-auth-card">
-      <span className="rr-eyebrow">{authMode === "signup" ? "Join the collection" : authMode === "verify" ? "One last step" : authMode === "forgot" ? "Account recovery" : authMode === "reset" ? "Choose a new password" : "Welcome back"}</span>
-      <h1>{authMode === "signup" ? "Create your account." : authMode === "verify" ? "Check your email." : authMode === "forgot" ? "Reset your password." : authMode === "reset" ? "Set a new password." : "Sign in to REELROOM."}</h1>
-      <p>{authMode === "signup" ? "Keep your watchlist, cart, and demo orders with your account." : authMode === "verify" ? "Confirm your email address to finish creating your account." : authMode === "forgot" ? "We’ll email a password reset link if an account matches." : authMode === "reset" ? "Use at least 8 characters, then sign in again." : "Your watchlist, cart, and account orders are saved here."}</p>
+    <section className={`rr-auth-card ${authMode === "verify" ? "rr-auth-confirmation-card" : ""}`}>
+      {(authMode === "verify" || authMode === "confirmed") && <div className={`rr-auth-state-icon ${authMode === "confirmed" ? "success" : ""}`} aria-hidden="true">
+        {authMode === "confirmed" ? <CheckCircle2 size={28}/> : <MailCheck size={28}/>}
+      </div>}
+      <span className="rr-eyebrow">{authMode === "signup" ? "Join the collection" : authMode === "verify" ? "One last step" : authMode === "confirmed" ? "Email confirmed" : authMode === "forgot" ? "Account recovery" : authMode === "reset" ? "Choose a new password" : "Welcome back"}</span>
+      <h1>{authMode === "signup" ? "Create your account." : authMode === "verify" ? "Check your email." : authMode === "confirmed" ? "You’re in the collection." : authMode === "forgot" ? "Reset your password." : authMode === "reset" ? "Set a new password." : "Sign in to REELROOM."}</h1>
+      <p>{authMode === "signup"
+        ? "Keep your watchlist, cart, and demo orders with your account. We’ll send a confirmation link—verify your email before signing in."
+        : authMode === "verify"
+          ? "We sent a secure confirmation link. Open it to verify your email and activate your REELROOM account."
+          : authMode === "confirmed"
+            ? "Your email has been confirmed by Supabase. Your profile and saved account data are ready."
+            : authMode === "forgot"
+              ? "We’ll email a password reset link if an account matches."
+              : authMode === "reset"
+                ? "Use at least 8 characters, then sign in again."
+                : "Your watchlist, cart, and account orders are saved here."}</p>
       {authNotice && <div className="rr-auth-notice" role="status">{authNotice}</div>}
       {authError && <div className="rr-auth-error" role="alert">{authError}</div>}
-      {authMode === "verify" ? <div className="rr-auth-actions">
-        <button className="rr-button" onClick={() => { setAuthMode("login"); setAuthError(""); setAuthNotice(""); }}>Back to sign in</button>
+      {authMode === "verify" ? <>
+        {pendingConfirmationEmail && <div className="rr-auth-confirm-email">
+          <span>Confirmation link sent to</span>
+          <strong>{pendingConfirmationEmail}</strong>
+        </div>}
+        <p className="rr-auth-confirm-help">After you click the link, return here to sign in. If it’s missing, check your spam folder.</p>
+        <div className="rr-auth-actions">
+          {pendingConfirmationEmail && <button className="rr-button secondary" type="button" onClick={resendConfirmation} disabled={authBusy}>
+            {authBusy ? "Sending…" : "Resend confirmation email"}
+          </button>}
+          <button className="rr-button" type="button" onClick={() => {
+            setAuthMode(pendingConfirmationEmail ? "login" : "signup");
+            setAuthError("");
+            setAuthNotice("");
+          }}>{pendingConfirmationEmail ? "Back to sign in" : "Create account again"}</button>
+        </div>
+      </> : authMode === "confirmed" ? <div className="rr-auth-actions">
+        <button className="rr-button" type="button" onClick={() => navigate(authReturnView)}>Continue to REELROOM <ArrowRight size={14}/></button>
       </div> : <form className="rr-form rr-auth-form" onSubmit={submitAuth} noValidate>
         {authMode === "signup" && <label>Display name<input className="rr-input" name="displayName" autoComplete="nickname" minLength={2} maxLength={80} required/></label>}
         {authMode !== "reset" && <label>Email address<input className="rr-input" name="email" type="email" autoComplete="email" required/></label>}
@@ -2384,11 +2493,12 @@ export function Reelroom() {
           </label>
           {(authMode === "signup" || authMode === "reset") && <label>Confirm password<input className="rr-input" name="confirmPassword" type={authPasswordVisible ? "text" : "password"} autoComplete="new-password" minLength={8} required/></label>}
         </>}
+        {authMode === "signup" && <p className="rr-auth-signup-hint">After submitting your details, confirm your email using the link Supabase sends you.</p>}
         <button className="rr-button" type="submit" disabled={authBusy}>{authBusy ? "Please wait…" : authMode === "signup" ? "Create account" : authMode === "forgot" ? "Send reset link" : authMode === "reset" ? "Update password" : "Sign in"}</button>
       </form>}
       {authMode === "login" && <div className="rr-auth-links"><button onClick={() => { setAuthMode("forgot"); setAuthError(""); setAuthNotice(""); }}>Forgot password?</button><span>New to REELROOM?</span><button onClick={() => { setAuthMode("signup"); setAuthError(""); setAuthNotice(""); }}>Create account</button></div>}
       {authMode === "signup" && <div className="rr-auth-links"><span>Already have an account?</span><button onClick={() => { setAuthMode("login"); setAuthError(""); setAuthNotice(""); }}>Sign in</button></div>}
-      {(authMode === "forgot" || authMode === "reset" || authMode === "verify") && <div className="rr-auth-links"><button onClick={() => { setAuthMode("login"); setAuthError(""); setAuthNotice(""); }}>Back to sign in</button></div>}
+      {(authMode === "forgot" || authMode === "reset") && <div className="rr-auth-links"><button onClick={() => { setAuthMode("login"); setAuthError(""); setAuthNotice(""); }}>Back to sign in</button></div>}
       <p className="rr-auth-fineprint">Demo checkout only. No payment is taken and no movie access is provided.</p>
     </section>
   </main>;
