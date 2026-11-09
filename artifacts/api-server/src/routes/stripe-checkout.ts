@@ -61,6 +61,12 @@ router.post("/stripe/checkout/quote", async (req, res) => {
 
 function clientCheckoutError(error: unknown): { status: number; message: string } {
   const message = error instanceof Error ? error.message : "";
+  if (/invalid currency:\s*kwd|process transactions in kwd/i.test(message)) {
+    return {
+      status: 409,
+      message: "This Stripe account does not support KWD yet. Enable KWD in Stripe or choose a supported checkout currency.",
+    };
+  }
   if (/not complete yet/i.test(message)) {
     return { status: 409, message: "Your payment is still processing. Please try again shortly." };
   }
