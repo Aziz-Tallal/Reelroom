@@ -12,6 +12,8 @@ tags:
     description: Health operations
   - name: movie-night
     description: Personalized movie-night planning
+  - name: stripe-checkout
+    description: Secure REELROOM checkout
 paths:
   /healthz:
     get:
@@ -57,7 +59,158 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/MovieNightErrorResponse"
+  /stripe/checkout/session:
+    post:
+      operationId: createStripeCheckoutSession
+      tags: [stripe-checkout]
+      summary: Create a Stripe Checkout Session
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StripeCheckoutInput"
+      responses:
+        "200":
+          description: Stripe Checkout Session URL
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StripeCheckoutResponse"
+        "400":
+          description: Invalid cart or contact details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StripeCheckoutErrorResponse"
+        "401":
+          description: Sign-in required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StripeCheckoutErrorResponse"
+        "503":
+          description: Stripe checkout unavailable
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StripeCheckoutErrorResponse"
+  /stripe/checkout/quote:
+    post:
+      operationId: quoteStripeCheckout
+      tags: [stripe-checkout]
+      summary: Quote a cart from Stripe prices
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StripeCheckoutQuoteInput"
+      responses:
+        "200":
+          description: Current Stripe prices for the cart
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StripeCheckoutQuoteResponse"
+        "400":
+          description: Invalid cart or unavailable catalog option
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StripeCheckoutErrorResponse"
+        "401":
+          description: Sign-in required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StripeCheckoutErrorResponse"
+        "503":
+          description: Stripe quote unavailable
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StripeCheckoutErrorResponse"
+  /stripe/checkout/confirm:
+    post:
+      operationId: confirmStripeCheckout
+      tags: [stripe-checkout]
+      summary: Confirm a Stripe payment
+      description: Confirms the payment with Stripe and returns its Supabase order snapshot.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StripeCheckoutConfirmInput"
+      responses:
+        "200":
+          description: Verified paid order
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StripeCheckoutConfirmResponse"
+        "400":
+          description: Invalid checkout session
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StripeCheckoutErrorResponse"
+        "401":
+          description: Sign-in required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StripeCheckoutErrorResponse"
+        "409":
+          description: Payment is not complete
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StripeCheckoutErrorResponse"
+  /stripe/checkout/cancel:
+    post:
+      operationId: cancelStripeCheckout
+      tags: [stripe-checkout]
+      summary: Cancel an unfinished Stripe checkout
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StripeCheckoutConfirmInput"
+      responses:
+        "200":
+          description: Checkout cancellation result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StripeCheckoutCancelResponse"
+        "400":
+          description: Invalid checkout session
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StripeCheckoutErrorResponse"
+        "401":
+          description: Sign-in required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StripeCheckoutErrorResponse"
 components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
   schemas:
     HealthStatus:
       type: object
@@ -245,6 +398,238 @@ components:
         - summary
         - recommendations
     MovieNightErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+      required:
+        - error
+    StripeCheckoutItemInput:
+      type: object
+      properties:
+        variantId:
+          type: string
+          minLength: 1
+          maxLength: 200
+        quantity:
+          type: integer
+          minimum: 1
+          maximum: 12
+      required:
+        - variantId
+        - quantity
+    StripeCheckoutContact:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 2
+          maxLength: 120
+        email:
+          type: string
+          format: email
+          maxLength: 254
+        phone:
+          type: string
+          minLength: 5
+          maxLength: 40
+        fulfillment:
+          type: string
+          enum: [Delivery, Pickup, "Digital platform preference"]
+        address:
+          type: string
+          maxLength: 500
+        note:
+          type: string
+          maxLength: 1000
+      required:
+        - name
+        - email
+        - phone
+        - fulfillment
+        - address
+        - note
+    StripeCheckoutInput:
+      type: object
+      properties:
+        items:
+          type: array
+          minItems: 1
+          maxItems: 40
+          items:
+            $ref: "#/components/schemas/StripeCheckoutItemInput"
+        contact:
+          $ref: "#/components/schemas/StripeCheckoutContact"
+      required:
+        - items
+        - contact
+    StripeCheckoutQuoteInput:
+      type: object
+      properties:
+        items:
+          type: array
+          minItems: 1
+          maxItems: 40
+          items:
+            $ref: "#/components/schemas/StripeCheckoutItemInput"
+      required:
+        - items
+    StripeCheckoutQuotePrice:
+      type: object
+      properties:
+        variantId:
+          type: string
+        unitPriceKwd:
+          type: number
+        quantity:
+          type: integer
+      required:
+        - variantId
+        - unitPriceKwd
+        - quantity
+    StripeCheckoutQuoteResponse:
+      type: object
+      properties:
+        prices:
+          type: array
+          items:
+            $ref: "#/components/schemas/StripeCheckoutQuotePrice"
+        totalKwd:
+          type: number
+      required:
+        - prices
+        - totalKwd
+    StripeCheckoutResponse:
+      type: object
+      properties:
+        url:
+          type: string
+          format: uri
+      required:
+        - url
+    StripeCheckoutConfirmInput:
+      type: object
+      properties:
+        sessionId:
+          type: string
+          minLength: 10
+          maxLength: 255
+      required:
+        - sessionId
+    StripeCheckoutOrderItem:
+      type: object
+      properties:
+        id:
+          type: string
+        order_id:
+          type: string
+        product_id:
+          type: ["string", "null"]
+        variant_id:
+          type: ["string", "null"]
+        product_title:
+          type: string
+        poster_url:
+          type: ["string", "null"]
+        quantity:
+          type: integer
+        unit_price_kwd:
+          type: ["number", "string"]
+        media_type:
+          type: string
+          enum: [physical, digital]
+        transaction_type:
+          type: string
+          enum: [buy, rent]
+        selected_format:
+          type: ["string", "null"]
+        selected_platform:
+          type: ["string", "null"]
+        rental_duration_days:
+          type: ["integer", "null"]
+      required:
+        - id
+        - order_id
+        - product_id
+        - variant_id
+        - product_title
+        - poster_url
+        - quantity
+        - unit_price_kwd
+        - media_type
+        - transaction_type
+        - selected_format
+        - selected_platform
+        - rental_duration_days
+    StripeCheckoutOrder:
+      type: object
+      properties:
+        id:
+          type: string
+        order_number:
+          type: string
+        total_kwd:
+          type: ["number", "string"]
+        order_status:
+          type: string
+        contact_name:
+          type: string
+        contact_email:
+          type: string
+        contact_phone:
+          type: string
+        fulfillment_method:
+          type: string
+        delivery_address:
+          type: ["string", "null"]
+        order_note:
+          type: ["string", "null"]
+        created_at:
+          type: string
+          format: date-time
+        checkout_mode:
+          type: string
+          enum: [test, live, demo]
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/StripeCheckoutOrderItem"
+      required:
+        - id
+        - order_number
+        - total_kwd
+        - order_status
+        - contact_name
+        - contact_email
+        - contact_phone
+        - fulfillment_method
+        - delivery_address
+        - order_note
+        - created_at
+        - checkout_mode
+        - items
+    StripeCheckoutConfirmResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [paid]
+        order:
+          $ref: "#/components/schemas/StripeCheckoutOrder"
+      required:
+        - status
+        - order
+    StripeCheckoutCancelResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [cancelled, paid]
+        order:
+          $ref: "#/components/schemas/StripeCheckoutOrder"
+      required:
+        - status
+    StripeCheckoutErrorResponse:
       type: object
       properties:
         error:

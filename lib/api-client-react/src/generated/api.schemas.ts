@@ -170,3 +170,180 @@ export interface MovieNightPlanResponse {
 export interface MovieNightErrorResponse {
   error: string;
 }
+
+export interface StripeCheckoutItemInput {
+  /**
+     * @minLength 1
+     * @maxLength 200
+     */
+  variantId: string;
+  /**
+     * @minimum 1
+     * @maximum 12
+     */
+  quantity: number;
+}
+
+export type StripeCheckoutContactFulfillment = typeof StripeCheckoutContactFulfillment[keyof typeof StripeCheckoutContactFulfillment];
+
+
+export const StripeCheckoutContactFulfillment = {
+  Delivery: 'Delivery',
+  Pickup: 'Pickup',
+  Digital_platform_preference: 'Digital platform preference',
+} as const;
+
+export interface StripeCheckoutContact {
+  /**
+     * @minLength 2
+     * @maxLength 120
+     */
+  name: string;
+  /** @maxLength 254 */
+  email: string;
+  /**
+     * @minLength 5
+     * @maxLength 40
+     */
+  phone: string;
+  fulfillment: StripeCheckoutContactFulfillment;
+  /** @maxLength 500 */
+  address: string;
+  /** @maxLength 1000 */
+  note: string;
+}
+
+export interface StripeCheckoutInput {
+  /**
+     * @minItems 1
+     * @maxItems 40
+     */
+  items: StripeCheckoutItemInput[];
+  contact: StripeCheckoutContact;
+}
+
+export interface StripeCheckoutQuoteInput {
+  /**
+     * @minItems 1
+     * @maxItems 40
+     */
+  items: StripeCheckoutItemInput[];
+}
+
+export interface StripeCheckoutQuotePrice {
+  variantId: string;
+  unitPriceKwd: number;
+  quantity: number;
+}
+
+export interface StripeCheckoutQuoteResponse {
+  prices: StripeCheckoutQuotePrice[];
+  totalKwd: number;
+}
+
+export interface StripeCheckoutResponse {
+  url: string;
+}
+
+export interface StripeCheckoutConfirmInput {
+  /**
+     * @minLength 10
+     * @maxLength 255
+     */
+  sessionId: string;
+}
+
+export type StripeCheckoutOrderItemMediaType = typeof StripeCheckoutOrderItemMediaType[keyof typeof StripeCheckoutOrderItemMediaType];
+
+
+export const StripeCheckoutOrderItemMediaType = {
+  physical: 'physical',
+  digital: 'digital',
+} as const;
+
+export type StripeCheckoutOrderItemTransactionType = typeof StripeCheckoutOrderItemTransactionType[keyof typeof StripeCheckoutOrderItemTransactionType];
+
+
+export const StripeCheckoutOrderItemTransactionType = {
+  buy: 'buy',
+  rent: 'rent',
+} as const;
+
+export interface StripeCheckoutOrderItem {
+  id: string;
+  order_id: string;
+  /** @nullable */
+  product_id: string | null;
+  /** @nullable */
+  variant_id: string | null;
+  product_title: string;
+  /** @nullable */
+  poster_url: string | null;
+  quantity: number;
+  unit_price_kwd: number | string;
+  media_type: StripeCheckoutOrderItemMediaType;
+  transaction_type: StripeCheckoutOrderItemTransactionType;
+  /** @nullable */
+  selected_format: string | null;
+  /** @nullable */
+  selected_platform: string | null;
+  /** @nullable */
+  rental_duration_days: number | null;
+}
+
+export type StripeCheckoutOrderCheckoutMode = typeof StripeCheckoutOrderCheckoutMode[keyof typeof StripeCheckoutOrderCheckoutMode];
+
+
+export const StripeCheckoutOrderCheckoutMode = {
+  test: 'test',
+  live: 'live',
+  demo: 'demo',
+} as const;
+
+export interface StripeCheckoutOrder {
+  id: string;
+  order_number: string;
+  total_kwd: number | string;
+  order_status: string;
+  contact_name: string;
+  contact_email: string;
+  contact_phone: string;
+  fulfillment_method: string;
+  /** @nullable */
+  delivery_address: string | null;
+  /** @nullable */
+  order_note: string | null;
+  created_at: string;
+  checkout_mode: StripeCheckoutOrderCheckoutMode;
+  items: StripeCheckoutOrderItem[];
+}
+
+export type StripeCheckoutConfirmResponseStatus = typeof StripeCheckoutConfirmResponseStatus[keyof typeof StripeCheckoutConfirmResponseStatus];
+
+
+export const StripeCheckoutConfirmResponseStatus = {
+  paid: 'paid',
+} as const;
+
+export interface StripeCheckoutConfirmResponse {
+  status: StripeCheckoutConfirmResponseStatus;
+  order: StripeCheckoutOrder;
+}
+
+export type StripeCheckoutCancelResponseStatus = typeof StripeCheckoutCancelResponseStatus[keyof typeof StripeCheckoutCancelResponseStatus];
+
+
+export const StripeCheckoutCancelResponseStatus = {
+  cancelled: 'cancelled',
+  paid: 'paid',
+} as const;
+
+export interface StripeCheckoutCancelResponse {
+  status: StripeCheckoutCancelResponseStatus;
+  order?: StripeCheckoutOrder;
+}
+
+export interface StripeCheckoutErrorResponse {
+  error: string;
+}
+

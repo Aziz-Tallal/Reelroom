@@ -130,3 +130,169 @@ export const CreateMovieNightPlanResponse = zod.object({
   "reason": zod.string().min(1).max(createMovieNightPlanResponseRecommendationsItemReasonMax)
 })).max(createMovieNightPlanResponseRecommendationsMax)
 })
+
+
+/**
+ * @summary Create a Stripe Checkout Session
+ */
+export const createStripeCheckoutSessionBodyItemsItemVariantIdMax = 200;
+
+export const createStripeCheckoutSessionBodyItemsItemQuantityMax = 12;
+
+export const createStripeCheckoutSessionBodyItemsMax = 40;
+
+export const createStripeCheckoutSessionBodyContactNameMin = 2;
+export const createStripeCheckoutSessionBodyContactNameMax = 120;
+
+export const createStripeCheckoutSessionBodyContactEmailMax = 254;
+
+export const createStripeCheckoutSessionBodyContactPhoneMin = 5;
+export const createStripeCheckoutSessionBodyContactPhoneMax = 40;
+
+export const createStripeCheckoutSessionBodyContactAddressMax = 500;
+
+export const createStripeCheckoutSessionBodyContactNoteMax = 1000;
+
+
+
+export const CreateStripeCheckoutSessionBody = zod.object({
+  "items": zod.array(zod.object({
+  "variantId": zod.string().min(1).max(createStripeCheckoutSessionBodyItemsItemVariantIdMax),
+  "quantity": zod.number().int().min(1).max(createStripeCheckoutSessionBodyItemsItemQuantityMax)
+})).min(1).max(createStripeCheckoutSessionBodyItemsMax),
+  "contact": zod.object({
+  "name": zod.string().min(createStripeCheckoutSessionBodyContactNameMin).max(createStripeCheckoutSessionBodyContactNameMax),
+  "email": zod.string().email().max(createStripeCheckoutSessionBodyContactEmailMax),
+  "phone": zod.string().min(createStripeCheckoutSessionBodyContactPhoneMin).max(createStripeCheckoutSessionBodyContactPhoneMax),
+  "fulfillment": zod.enum(['Delivery', 'Pickup', 'Digital platform preference']),
+  "address": zod.string().max(createStripeCheckoutSessionBodyContactAddressMax),
+  "note": zod.string().max(createStripeCheckoutSessionBodyContactNoteMax)
+})
+})
+
+export const CreateStripeCheckoutSessionResponse = zod.object({
+  "url": zod.string().url()
+})
+
+
+/**
+ * @summary Quote a cart from Stripe prices
+ */
+export const quoteStripeCheckoutBodyItemsItemVariantIdMax = 200;
+
+export const quoteStripeCheckoutBodyItemsItemQuantityMax = 12;
+
+export const quoteStripeCheckoutBodyItemsMax = 40;
+
+
+
+export const QuoteStripeCheckoutBody = zod.object({
+  "items": zod.array(zod.object({
+  "variantId": zod.string().min(1).max(quoteStripeCheckoutBodyItemsItemVariantIdMax),
+  "quantity": zod.number().int().min(1).max(quoteStripeCheckoutBodyItemsItemQuantityMax)
+})).min(1).max(quoteStripeCheckoutBodyItemsMax)
+})
+
+export const QuoteStripeCheckoutResponse = zod.object({
+  "prices": zod.array(zod.object({
+  "variantId": zod.string(),
+  "unitPriceKwd": zod.number(),
+  "quantity": zod.number().int()
+})),
+  "totalKwd": zod.number()
+})
+
+
+/**
+ * Confirms the payment with Stripe and returns its Supabase order snapshot.
+ * @summary Confirm a Stripe payment
+ */
+export const confirmStripeCheckoutBodySessionIdMin = 10;
+export const confirmStripeCheckoutBodySessionIdMax = 255;
+
+
+
+export const ConfirmStripeCheckoutBody = zod.object({
+  "sessionId": zod.string().min(confirmStripeCheckoutBodySessionIdMin).max(confirmStripeCheckoutBodySessionIdMax)
+})
+
+export const ConfirmStripeCheckoutResponse = zod.object({
+  "status": zod.enum(['paid']),
+  "order": zod.object({
+  "id": zod.string(),
+  "order_number": zod.string(),
+  "total_kwd": zod.union([zod.number(),zod.string()]),
+  "order_status": zod.string(),
+  "contact_name": zod.string(),
+  "contact_email": zod.string(),
+  "contact_phone": zod.string(),
+  "fulfillment_method": zod.string(),
+  "delivery_address": zod.string().nullable(),
+  "order_note": zod.string().nullable(),
+  "created_at": zod.coerce.date(),
+  "checkout_mode": zod.enum(['test', 'live', 'demo']),
+  "items": zod.array(zod.object({
+  "id": zod.string(),
+  "order_id": zod.string(),
+  "product_id": zod.string().nullable(),
+  "variant_id": zod.string().nullable(),
+  "product_title": zod.string(),
+  "poster_url": zod.string().nullable(),
+  "quantity": zod.number().int(),
+  "unit_price_kwd": zod.union([zod.number(),zod.string()]),
+  "media_type": zod.enum(['physical', 'digital']),
+  "transaction_type": zod.enum(['buy', 'rent']),
+  "selected_format": zod.string().nullable(),
+  "selected_platform": zod.string().nullable(),
+  "rental_duration_days": zod.number().int().nullable()
+}))
+})
+})
+
+
+/**
+ * @summary Cancel an unfinished Stripe checkout
+ */
+export const cancelStripeCheckoutBodySessionIdMin = 10;
+export const cancelStripeCheckoutBodySessionIdMax = 255;
+
+
+
+export const CancelStripeCheckoutBody = zod.object({
+  "sessionId": zod.string().min(cancelStripeCheckoutBodySessionIdMin).max(cancelStripeCheckoutBodySessionIdMax)
+})
+
+export const CancelStripeCheckoutResponse = zod.object({
+  "status": zod.enum(['cancelled', 'paid']),
+  "order": zod.object({
+  "id": zod.string(),
+  "order_number": zod.string(),
+  "total_kwd": zod.union([zod.number(),zod.string()]),
+  "order_status": zod.string(),
+  "contact_name": zod.string(),
+  "contact_email": zod.string(),
+  "contact_phone": zod.string(),
+  "fulfillment_method": zod.string(),
+  "delivery_address": zod.string().nullable(),
+  "order_note": zod.string().nullable(),
+  "created_at": zod.coerce.date(),
+  "checkout_mode": zod.enum(['test', 'live', 'demo']),
+  "items": zod.array(zod.object({
+  "id": zod.string(),
+  "order_id": zod.string(),
+  "product_id": zod.string().nullable(),
+  "variant_id": zod.string().nullable(),
+  "product_title": zod.string(),
+  "poster_url": zod.string().nullable(),
+  "quantity": zod.number().int(),
+  "unit_price_kwd": zod.union([zod.number(),zod.string()]),
+  "media_type": zod.enum(['physical', 'digital']),
+  "transaction_type": zod.enum(['buy', 'rent']),
+  "selected_format": zod.string().nullable(),
+  "selected_platform": zod.string().nullable(),
+  "rental_duration_days": zod.number().int().nullable()
+}))
+}).optional()
+})
+
+

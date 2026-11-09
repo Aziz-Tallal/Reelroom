@@ -58,8 +58,21 @@ type CartLine = {
   option: string; price: number; quantity: number; rental: string; variantId?: string | null;
   movieTitleSnapshot?: string; posterUrlSnapshot?: string | null;
 };
-type DemoOrder = { id: string; date: string; customer: string; total: number; items: CartLine[]; fulfillment: string; databaseId?: string };
+type DemoOrder = {
+  id: string;
+  date: string;
+  customer: string;
+  total: number;
+  items: CartLine[];
+  fulfillment: string;
+  databaseId?: string;
+  orderStatus?: string;
+  checkoutMode?: "demo" | "test" | "live";
+};
 type CheckoutData = { name: string; email: string; phone: string; fulfillment: string; address: string; note: string };
+type PaidCheckoutOrder = AccountOrderRecord & { items: AccountOrderItemRecord[] };
+type StripeCheckoutConfirmResult = { status: "paid"; order: PaidCheckoutOrder };
+type StripeCheckoutCancelResult = { status: "cancelled" | "paid"; order?: PaidCheckoutOrder };
 type CriterionFilm = { title: string; poster: string; source: string };
 
 const EMPTY_MOVIE: Movie = {
@@ -134,7 +147,7 @@ function cartLineFromVariant(movie: Movie, variant: ProductVariantRecord, quanti
     option,
     price: Number(variant.price_kwd),
     quantity: Math.max(1, Math.min(12, quantity)),
-    rental,
+    rental: mode === "Rent" ? rental : "Catalog purchase option",
   };
 }
 
@@ -146,6 +159,8 @@ function formatAccountOrder(order: AccountOrderRecord, items: AccountOrderItemRe
     customer: order.contact_name,
     total: Number(order.total_kwd),
     fulfillment: order.fulfillment_method,
+    orderStatus: order.order_status,
+    checkoutMode: order.checkout_mode ?? "demo",
     items: items.filter((item) => item.order_id === order.id).map((item) => ({
       key: item.id,
       variantId: item.variant_id,
@@ -157,9 +172,37 @@ function formatAccountOrder(order: AccountOrderRecord, items: AccountOrderItemRe
       option: item.media_type === "physical" ? item.selected_format ?? "Disc" : item.selected_platform ?? "Digital",
       price: Number(item.unit_price_kwd),
       quantity: item.quantity,
-      rental: item.transaction_type === "rent" ? `${item.rental_duration_days ?? 0}-day rental` : "Demo ownership",
+      rental: item.transaction_type === "rent"
+        ? `${item.rental_duration_days ?? 0}-day rental`
+        : order.checkout_mode === "test" ? "Test checkout · no movie access" : "Catalog purchase option",
     })),
   };
+}
+
+async function requestStripeCheckout<T>(
+  action: "session" | "quote" | "confirm" | "cancel",
+  body: Record<string, unknown>,
+): Promise<T> {
+  const client = getSupabaseClient();
+  const { data, error: sessionError } = await client.auth.getSession();
+  const accessToken = data.session?.access_token;
+  if (sessionError || !accessToken) {
+    throw new Error("Your sign-in has expired. Please sign in again.");
+  }
+
+  const response = await fetch(`/api/stripe/checkout/${action}`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${accessToken}`,
+    },
+    body: JSON.stringify(body),
+  });
+  const result = await response.json().catch(() => ({})) as { error?: string } & T;
+  if (!response.ok) {
+    throw new Error(result.error || "Stripe checkout is temporarily unavailable.");
+  }
+  return result;
 }
 
 const BASE_MOVIES: Movie[] = [
@@ -1197,6 +1240,15 @@ export function Reelroom() {
   const [checkoutErrors, setCheckoutErrors] = useState<Record<string, string>>({});
   const [checkoutData, setCheckoutData] = useState<CheckoutData>({ name: "", email: "", phone: "", fulfillment: "Delivery", address: "", note: "" });
   const [confirmedOrder, setConfirmedOrder] = useState<DemoOrder | null>(null);
+  const [checkoutPaymentStatus, setCheckoutPaymentStatus] = useState<"idle" | "starting" | "verifying" | "cancelled" | "error" | "paid">("idle");
+  const [checkoutError, setCheckoutError] = useState("");
+  const [checkoutQuoteStatus, setCheckoutQuoteStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
+  const [checkoutQuoteError, setCheckoutQuoteError] = useState("");
+  const [checkoutReturnSessionId, setCheckoutReturnSessionId] = useState("");
+  const [checkoutReturnRetry, setCheckoutReturnRetry] = useState(0);
+  const checkoutReturnHandledRef = useRef<string | null>(null);
+  const checkoutQuoteFingerprintRef = useRef("");
+  const clearedPaidVariantIdsRef = useRef(new Set<string>());
   const [contactSent, setContactSent] = useState(false);
   const [contactErrors, setContactErrors] = useState<Record<string, string>>({});
   const [adSecond, setAdSecond] = useState(0);
@@ -1210,7 +1262,7 @@ export function Reelroom() {
   const cartCount = cart.reduce((sum, item) => sum + item.quantity, 0);
   const cartTotal = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
   const orderedMovieIds = useMemo(
-    () => new Set([...orders, ...localOrders].flatMap((order) => order.items.map((item) => item.movieId))),
+    () => new Set([...orders.filter((order) => order.checkoutMode !== "test"), ...localOrders].flatMap((order) => order.items.map((item) => item.movieId))),
     [orders, localOrders],
   );
   const genres = useMemo(() => ["All genres", ...Array.from(new Set(movies.flatMap((movie) => movie.genres ?? [movie.genre]).filter(Boolean))).sort()], [movies]);
@@ -1225,6 +1277,21 @@ export function Reelroom() {
       .map((variant) => Number(variant.price_kwd));
     return prices.length ? Math.min(...prices) : Number.POSITIVE_INFINITY;
   };
+  const applyPaidStripeOrder = useCallback((order: PaidCheckoutOrder) => {
+    const paidVariantIds = new Set(order.items.map((item) => item.variant_id).filter((id): id is string => Boolean(id)));
+    for (const variantId of paidVariantIds) clearedPaidVariantIdsRef.current.add(variantId);
+    const formattedOrder = formatAccountOrder(order, order.items);
+    setOrders((current) => [formattedOrder, ...current.filter((existing) => existing.databaseId !== formattedOrder.databaseId)]);
+    setConfirmedOrder(formattedOrder);
+    setCheckoutPaymentStatus("paid");
+    setCheckoutError("");
+    setCheckoutStep(3);
+    setCart((current) => current.filter((line) => {
+      const variantId = line.variantId ?? toCartVariantId(line, variants);
+      return !variantId || !paidVariantIds.has(variantId);
+    }));
+    setCheckoutReturnSessionId("");
+  }, [variants]);
 
   const loadCatalog = useCallback(async (silent = false) => {
     if (!silent) {
@@ -1316,6 +1383,61 @@ export function Reelroom() {
     };
   }, []);
 
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.has("checkout")) setView("checkout");
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const returnType = params.get("checkout");
+    if (!returnType) return;
+    setView("checkout");
+    if (returnType !== "success" && returnType !== "cancelled") return;
+
+    const sessionId = params.get("session_id");
+    if (!sessionId) {
+      setCheckoutPaymentStatus("error");
+      setCheckoutError("We could not verify the Stripe checkout session. Your cart has not been cleared.");
+      return;
+    }
+    setCheckoutReturnSessionId(sessionId);
+    if (!authUser) return;
+
+    const requestKey = `${returnType}:${sessionId}`;
+    if (checkoutReturnHandledRef.current === requestKey) return;
+    checkoutReturnHandledRef.current = requestKey;
+    setCheckoutReturnSessionId(sessionId);
+    setCheckoutPaymentStatus("verifying");
+    setCheckoutError("");
+
+    const action = returnType === "success" ? "confirm" : "cancel";
+    const request = requestStripeCheckout<StripeCheckoutConfirmResult | StripeCheckoutCancelResult>(
+      action,
+      { sessionId },
+    );
+    void request.then((result) => {
+      if (result.status === "paid" && result.order) {
+        applyPaidStripeOrder(result.order);
+      } else {
+        setCheckoutPaymentStatus("cancelled");
+        setCheckoutError("");
+        setCheckoutReturnSessionId("");
+      }
+      params.delete("checkout");
+      params.delete("session_id");
+      const query = params.toString();
+      const cleanUrl = `${window.location.pathname}${query ? `?${query}` : ""}${window.location.hash}`;
+      window.history.replaceState(window.history.state, "", cleanUrl);
+    }).catch((error: unknown) => {
+      checkoutReturnHandledRef.current = null;
+      setCheckoutPaymentStatus("error");
+      setCheckoutError(error instanceof Error ? error.message : "We could not verify your payment. Your cart has not been cleared.");
+    });
+  }, [authUser?.id, checkoutReturnRetry, applyPaidStripeOrder]);
+
   useEffect(() => { if (!authUser || catalogStatus !== "ready") return; 
     let active = true;
     const hydrateAccount = async () => {
@@ -1368,7 +1490,8 @@ export function Reelroom() {
         if (cartResult.error) throw cartResult.error;
         if (ordersResult.error) throw ordersResult.error;
 
-        const accountOrders = (ordersResult.data ?? []) as AccountOrderRecord[];
+        const accountOrders = ((ordersResult.data ?? []) as AccountOrderRecord[])
+          .filter((order) => order.order_status === "paid" || order.order_status === "demo_confirmed");
         let accountItems: AccountOrderItemRecord[] = [];
         if (accountOrders.length) {
           const { data, error } = await client.from("order_items").select("*").in("order_id", accountOrders.map((order) => order.id));
@@ -1378,13 +1501,23 @@ export function Reelroom() {
         if (!active) return;
         setProfile(profileResult.data as ProfileRecord | null);
         setWatchlist((favoritesResult.data ?? []).map((row: { product_id: string }) => row.product_id));
-        setOrders(accountOrders.map((order) => formatAccountOrder(order, accountItems)));
+        setOrders((current) => {
+          const loadedOrders = accountOrders.map((order) => formatAccountOrder(order, accountItems));
+          const loadedIds = new Set(loadedOrders.map((order) => order.databaseId));
+          return [
+            ...loadedOrders,
+            ...current.filter((order) => order.checkoutMode === "test" && !loadedIds.has(order.databaseId)),
+          ];
+        });
         const loadedCart = (cartResult.data ?? []).flatMap((row: { variant_id: string; quantity: number }) => {
           const variant = variants.find((candidate) => candidate.id === row.variant_id);
           const movie = variant && movies.find((candidate) => candidate.id === variant.product_id);
           return variant && movie ? [cartLineFromVariant(movie, variant, row.quantity)] : [];
         });
-        setCart(loadedCart);
+        setCart(loadedCart.filter((line) => {
+          const variantId = toCartVariantId(line, variants);
+          return !variantId || !clearedPaidVariantIdsRef.current.has(variantId);
+        }));
         setCartHydratedFor(authUser.id);
         setAccountDataHydratedFor(authUser.id);
         if (localFavorites.length || localCart.length) {
@@ -1428,6 +1561,49 @@ export function Reelroom() {
     const timeout = window.setTimeout(() => { void saveAccountCart(); }, 250);
     return () => { cancelled = true; window.clearTimeout(timeout); };
   }, [authUser?.id, cart, cartHydratedFor, variants]);
+
+  useEffect(() => {
+    if (view !== "cart" && view !== "checkout") {
+      checkoutQuoteFingerprintRef.current = "";
+      setCheckoutQuoteStatus("idle");
+      setCheckoutQuoteError("");
+      return;
+    }
+    if (!authUser || catalogStatus !== "ready" || cart.length === 0) return;
+
+    const items = cart.flatMap((line) => {
+      const variantId = toCartVariantId(line, variants);
+      return variantId ? [{ variantId, quantity: line.quantity }] : [];
+    });
+    if (items.length !== cart.length) return;
+    const fingerprint = JSON.stringify(items.slice().sort((left, right) => left.variantId.localeCompare(right.variantId)));
+    if (checkoutQuoteFingerprintRef.current === fingerprint) return;
+    checkoutQuoteFingerprintRef.current = fingerprint;
+    let active = true;
+    setCheckoutQuoteStatus("loading");
+    setCheckoutQuoteError("");
+
+    void requestStripeCheckout<{ prices: Array<{ variantId: string; unitPriceKwd: number; quantity: number }>; totalKwd: number }>(
+      "quote",
+      { items },
+    ).then((quote) => {
+      if (!active) return;
+      const pricesByVariant = new Map(quote.prices.map((price) => [price.variantId, price.unitPriceKwd]));
+      setCart((current) => current.map((line) => {
+        const variantId = line.variantId ?? toCartVariantId(line, variants);
+        const price = variantId ? pricesByVariant.get(variantId) : undefined;
+        return price === undefined ? line : { ...line, price };
+      }));
+      setCheckoutQuoteStatus("ready");
+    }).catch((error: unknown) => {
+      if (!active) return;
+      checkoutQuoteFingerprintRef.current = "";
+      setCheckoutQuoteStatus("error");
+      setCheckoutQuoteError(error instanceof Error ? error.message : "Unable to refresh prices from Stripe.");
+    });
+
+    return () => { active = false; };
+  }, [view, authUser?.id, catalogStatus, cart, variants]);
 
   useEffect(() => {
     if (!authUser) {
@@ -1550,7 +1726,14 @@ export function Reelroom() {
     setMobileOpen(false);
     setAccountMenuOpen(false);
     setAdded(false);
-    if (next === "checkout") { setCheckoutStep(1); setCheckoutErrors({}); setConfirmedOrder(null); }
+    if (next === "checkout") {
+      setCheckoutStep(1);
+      setCheckoutErrors({});
+      setConfirmedOrder(null);
+      setCheckoutPaymentStatus("idle");
+      setCheckoutError("");
+      setCheckoutReturnSessionId("");
+    }
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
   const openAuth = (mode: "login" | "signup" | "forgot", returnTo: View = view, notice = "") => {
@@ -1719,21 +1902,22 @@ export function Reelroom() {
     event.preventDefault();
     if (!validateCheckout()) return;
     if (!authUser) {
-      openAuth("login", "checkout", "Sign in to save this demo order to your account.");
+      openAuth("login", "checkout", "Sign in to continue to secure test checkout.");
       return;
     }
     setOrderSubmitting(true);
     setAccountStateError("");
+    setCheckoutPaymentStatus("starting");
+    setCheckoutError("");
     try {
       const items = cart.flatMap((line) => {
         const variantId = toCartVariantId(line, variants);
-        return variantId ? [{ variant_id: variantId, quantity: Math.max(1, Math.min(12, line.quantity)) }] : [];
+        return variantId ? [{ variantId, quantity: Math.max(1, Math.min(12, line.quantity)) }] : [];
       });
       if (items.length !== cart.length) throw new Error("One or more cart options are no longer available. Review your cart and try again.");
-      const client = getSupabaseClient();
-      const { data, error } = await client.rpc("create_demo_order", {
-        p_items: items,
-        p_contact: {
+      const result = await requestStripeCheckout<{ url: string }>("session", {
+        items,
+        contact: {
           name: checkoutData.name,
           email: checkoutData.email,
           phone: checkoutData.phone,
@@ -1742,28 +1926,12 @@ export function Reelroom() {
           note: checkoutData.note,
         },
       });
-      if (error) throw error;
-      const result = data as (AccountOrderRecord & { items?: AccountOrderItemRecord[] }) | null;
-      if (!result?.id || !result.order_number) throw new Error("The order could not be confirmed. Please try again.");
-      if (!Array.isArray(result.items)) throw new Error("The order was saved, but its confirmation details could not be loaded. Check My Orders before retrying.");
-      const order = formatAccountOrder(result, result.items);
-      order.total = Number(result.total_kwd ?? order.total);
-      setOrders((current) => [order, ...current.filter((existing) => existing.databaseId !== order.databaseId)]);
-      setConfirmedOrder(order);
-      setCart([]);
-      setCheckoutStep(3);
-      setCheckoutErrors({});
+      if (!result.url) throw new Error("Stripe did not return a checkout link.");
+      window.location.assign(result.url);
     } catch (error) {
       const message = error instanceof Error ? error.message : "";
-      setAccountStateError(/contact details are incomplete/i.test(message)
-        ? "Please check your name, email, and phone number."
-        : /delivery address is required/i.test(message)
-          ? "Enter a complete delivery address before confirming this order."
-          : /unavailable|cart quantities/i.test(message)
-            ? "One or more options changed. Review your cart and try again."
-          : /order was saved/i.test(message)
-            ? "The order was saved, but confirmation details could not be loaded. Check My Orders before retrying."
-            : "The demo order could not be saved. Please check the details and try again.");
+      setCheckoutPaymentStatus("error");
+      setCheckoutError(message || "Stripe checkout could not be started. Please review your details and try again.");
     } finally {
       setOrderSubmitting(false);
     }
@@ -2094,7 +2262,7 @@ export function Reelroom() {
         <div className="rr-steps">
           <div className="rr-step"><span className="rr-step-num">01 / DISCOVER</span><h3>Find the film.</h3><p>Search the archive, explore a genre, or follow a recommendation.</p></div>
           <div className="rr-step"><span className="rr-step-num">02 / CHOOSE</span><h3>Make it yours.</h3><p>Pick a disc or digital platform, then choose to buy or rent.</p></div>
-          <div className="rr-step"><span className="rr-step-num">03 / ENJOY</span><h3>Settle in.</h3><p>Review your demo order and keep your cinema shelf in one place.</p></div>
+          <div className="rr-step"><span className="rr-step-num">03 / ENJOY</span><h3>Settle in.</h3><p>Review your test checkout and keep your cinema shelf in one place.</p></div>
         </div>
       </div>
     </section>
@@ -2194,7 +2362,7 @@ export function Reelroom() {
           />
           {selectedMovie.isAnimated && selectedMovie.sourcePage && <a className="rr-poster-source" href={selectedMovie.sourcePage} target="_blank" rel="noreferrer">Poster reference · Wikipedia</a>}
           <div className="rr-divider"/>
-            <div className="rr-demo-note">{selectedMovie.isCriterion ? "Criterion formats, digital platforms, prices, and availability below are illustrative REELROOM options only—not verified stock or streaming rights." : "All availability and prices below are demonstration examples. No real retailer inventory, licensed streaming access, or payments."}</div>
+            <div className="rr-demo-note">{selectedMovie.isCriterion ? "Criterion formats, digital platforms, prices, and availability below are illustrative REELROOM options only—not verified stock or streaming rights." : "All availability and prices below are demonstration examples. No real retailer inventory, licensed streaming access, or live payments."}</div>
             <div className="rr-detail-library-action">
               <button
                 className="rr-button secondary"
@@ -2230,7 +2398,7 @@ export function Reelroom() {
               return <button key={option} className={`rr-choice ${selectedOption === option ? `active ${experience === "Digital" ? "blue" : ""}` : ""}`} onClick={() => setOption(option)}><span><strong>{option}</strong><span>{experience === "Physical" ? (option === "DVD" ? "Standard definition" : option === "Blu-ray" ? "High definition" : "Ultra high definition") : `${buyMode} · illustrative listing`}</span></span><span className="rr-selection-price">{money(optionPrice)}</span></button>;
             })}
           </div>
-          {buyMode === "Rent" && <p className="rr-rental-note">{experience === "Physical" ? "7-day disc rental. Return date will be shown on your demo order." : "Example terms: 30 days to begin, 48 hours to finish after playback starts."}</p>}
+          {buyMode === "Rent" && <p className="rr-rental-note">{experience === "Physical" ? "Example 7-day disc rental. Return details are illustrative only." : "Example terms: 30 days to begin, 48 hours to finish after playback starts."}</p>}
           {experience === "Physical" && buyMode === "Buy" && <><span className="rr-field-label">Quantity</span><div className="rr-quantity"><button aria-label="Decrease quantity" onClick={() => setQuantity((current) => Math.max(1, current - 1))}><Minus size={13}/></button><span>{quantity}</span><button aria-label="Increase quantity" onClick={() => setQuantity((current) => Math.min(12, current + 1))}><Plus size={13}/></button></div></>}
           <div className="rr-summary"><span><small>{selectedMovie.title} · {buyMode.toLowerCase()} · {selectedOption}</small><strong>{money(priceText * (experience === "Physical" && buyMode === "Buy" ? quantity : 1))}</strong></span><span className="rr-tags">{buyMode === "Rent" ? "RENTAL" : "PRICE"}</span></div>
            <button className="rr-button" style={{ width: "100%", marginTop: 14 }} disabled={!selectedVariant} onClick={addToCart}><ShoppingBag size={15}/> Add to cart</button>
@@ -2257,18 +2425,22 @@ export function Reelroom() {
               <button className="rr-icon-btn" aria-label={`Remove ${title}`} onClick={() => removeCartItem(item.key)}><Trash2 size={16}/></button>
             </div>;
           })}</div>
-           <aside className="rr-cart-aside"><h3>Order summary</h3><div className="rr-total-line"><span>Items ({cartCount})</span><span>{money(cartTotal)}</span></div><div className="rr-total-line"><span>Delivery</span><span>{cart.some((item) => item.experience === "Physical") ? "At checkout" : "Digital"}</span></div><div className="rr-total-line total"><span>Estimated total</span><span>{money(cartTotal)}</span></div><p className="rr-demo-note" style={{ margin: "14px 0" }}>Demo checkout only. No payment will be collected.</p><button className="rr-button" style={{ width: "100%" }} onClick={() => navigate("checkout")}>Continue to demo checkout <ArrowRight size={14}/></button><button className="rr-text-link" style={{ marginTop: 12 }} onClick={() => navigate("browse")}>Continue exploring</button></aside>
+           <aside className="rr-cart-aside"><h3>Order summary</h3><div className="rr-total-line"><span>Items ({cartCount})</span><span>{money(cartTotal)}</span></div><div className="rr-total-line"><span>Delivery</span><span>{cart.some((item) => item.experience === "Physical") ? "At checkout" : "Digital"}</span></div><div className="rr-total-line total"><span>Estimated total</span><span>{money(cartTotal)}</span></div><p className="rr-demo-note" style={{ margin: "14px 0" }}>{checkoutQuoteStatus === "loading" ? "Checking current prices with Stripe…" : checkoutQuoteStatus === "error" ? checkoutQuoteError : checkoutQuoteStatus === "ready" ? "Prices confirmed with Stripe. Test mode only; no real money or movie access." : "Stripe test mode only. No real money or movie access."}</p><button className="rr-button" style={{ width: "100%" }} onClick={() => navigate("checkout")}>Continue to checkout <ArrowRight size={14}/></button><button className="rr-text-link" style={{ marginTop: 12 }} onClick={() => navigate("browse")}>Continue exploring</button></aside>
         </div>}
     </section>
   </main>;
 
   const renderCheckout = () => {
-     if (confirmedOrder) return <main className="rr-wrap"><section className="rr-section"><div className="rr-confirm"><div className="rr-confirm-icon"><Check size={28}/></div><span className="rr-eyebrow" style={{ justifyContent: "center" }}>Demo order confirmed</span><h1>That’s a wrap.</h1><div className="rr-order-num">{confirmedOrder.id}</div><p>Thanks, {confirmedOrder.customer}. This order is saved to your REELROOM account. No payment was processed and no licensed movie access is included.</p><div className="rr-order-card"><h3>Order details</h3>{confirmedOrder.items.map((item) => <div key={item.key} className="rr-order-row"><span>{item.movieTitleSnapshot ?? movieFor(item.movieId).title} · {item.experience} {item.mode} · {item.option}<br/><small>{item.mode === "Rent" ? item.rental : confirmedOrder.fulfillment}</small></span><strong>{money(item.price * item.quantity)}</strong></div>)}<div className="rr-order-row"><strong>Order total</strong><strong>{money(confirmedOrder.total)}</strong></div></div><button className="rr-button" onClick={() => navigate("library")}>View my library <ArrowRight size={14}/></button><button className="rr-text-link" onClick={() => navigate("orders")}>View account orders</button></div></section></main>;
+    if (confirmedOrder) return <main className="rr-wrap"><section className="rr-section"><div className="rr-confirm"><div className="rr-confirm-icon"><Check size={28}/></div><span className="rr-eyebrow" style={{ justifyContent: "center" }}>Stripe test payment verified</span><h1>That’s a wrap.</h1><div className="rr-order-num">{confirmedOrder.id}</div><p>Thanks, {confirmedOrder.customer}. Stripe verified this test-mode order and saved it to your REELROOM account. No real money was charged, and this does not grant movie access.</p><div className="rr-order-card"><h3>Order details</h3>{confirmedOrder.items.map((item) => <div key={item.key} className="rr-order-row"><span>{item.movieTitleSnapshot ?? movieFor(item.movieId).title} · {item.experience} {item.mode} · {item.option}<br/><small>{item.mode === "Rent" ? item.rental : "Test transaction · no movie access"}</small></span><strong>{money(item.price * item.quantity)}</strong></div>)}<div className="rr-order-row"><strong>Order total</strong><strong>{money(confirmedOrder.total)}</strong></div></div><button className="rr-button" onClick={() => navigate("orders")}>View test orders <ArrowRight size={14}/></button><button className="rr-text-link" onClick={() => navigate("browse")}>Continue browsing</button></div></section></main>;
     return <main className="rr-wrap">
-      <div className="rr-page-head"><span className="rr-eyebrow">No real money, just the movie-night feeling</span><h1>Demo checkout</h1><p>Review the order, add contact details, and create a saved demonstration order. Nothing will be charged.</p></div>
+      <div className="rr-page-head"><span className="rr-eyebrow">Stripe test mode</span><h1>Checkout</h1><p>Review your selection and pay with Stripe’s test checkout. No real money will be charged and no movie access is included.</p></div>
       <div className="rr-checkout-steps"><span className={`rr-checkout-step ${checkoutStep === 1 ? "active" : ""}`}>01 &nbsp; Review order</span><span className={`rr-checkout-step ${checkoutStep === 2 ? "active" : ""}`}>02 &nbsp; Your details</span><span className={`rr-checkout-step ${checkoutStep === 3 ? "active" : ""}`}>03 &nbsp; Confirmation</span></div>
+      {checkoutPaymentStatus === "verifying" && <div className="rr-demo-note" role="status">Verifying the payment directly with Stripe…</div>}
+      {checkoutPaymentStatus === "cancelled" && <div className="rr-demo-note" role="status">Checkout was cancelled. Your cart is still saved, and no order was marked paid.</div>}
+      {checkoutError && <div className="rr-demo-note" role="alert">{checkoutError}{checkoutReturnSessionId && checkoutPaymentStatus === "error" && <button className="rr-text-link" style={{ display: "block", marginTop: 8 }} onClick={() => { checkoutReturnHandledRef.current = null; setCheckoutReturnRetry((current) => current + 1); }}>Retry payment verification</button>}</div>}
+      {checkoutQuoteError && <div className="rr-demo-note" role="alert">{checkoutQuoteError}</div>}
       {cart.length === 0 ? <div className="rr-empty"><ShoppingBag size={25}/><h2>Nothing to check out yet.</h2><p>Your cart is empty. Pick a film first, then return here.</p><button className="rr-button" onClick={() => navigate("browse")}>Find a film</button></div> :
-      checkoutStep === 1 ? <div className="rr-cart-layout"><div className="rr-cart-aside" style={{ background: "transparent" }}><h3>Review your selection</h3>{cart.map((item) => <div className="rr-order-row" key={item.key}><span>{item.movieTitleSnapshot ?? movieFor(item.movieId).title}<br/><small>{item.experience} · {item.mode} · {item.option} · Qty {item.quantity}</small></span><strong>{money(item.price * item.quantity)}</strong></div>)}<div className="rr-order-row"><strong>Estimated total</strong><strong>{money(cartTotal)}</strong></div></div><aside className="rr-cart-aside"><h3>Before we continue</h3><p style={{ color: "#9aa4ad", fontSize: 11 }}>Physical selections use a delivery or pickup preference. Digital platform selections are recorded as your demo preference only.</p><div className="rr-divider"/><p className="rr-demo-note">Demonstration checkout · no payment processing · no streaming rights.</p><button className="rr-button" style={{ width: "100%", marginTop: 16 }} onClick={() => { setCheckoutStep(2); setCheckoutErrors({}); }}>Add your details <ArrowRight size={14}/></button></aside></div> :
+      checkoutStep === 1 ? <div className="rr-cart-layout"><div className="rr-cart-aside" style={{ background: "transparent" }}><h3>Review your selection</h3>{cart.map((item) => <div className="rr-order-row" key={item.key}><span>{item.movieTitleSnapshot ?? movieFor(item.movieId).title}<br/><small>{item.experience} · {item.mode} · {item.option} · Qty {item.quantity}</small></span><strong>{money(item.price * item.quantity)}</strong></div>)}<div className="rr-order-row"><strong>Estimated total</strong><strong>{money(cartTotal)}</strong></div></div><aside className="rr-cart-aside"><h3>Before we continue</h3><p style={{ color: "#9aa4ad", fontSize: 11 }}>Your delivery or pickup choice is saved as an order preference only; fulfillment is not connected yet.</p><div className="rr-divider"/><p className="rr-demo-note">{checkoutQuoteStatus === "loading" ? "Refreshing prices with Stripe…" : checkoutQuoteStatus === "ready" ? "Prices confirmed with Stripe." : "Stripe test mode · no real money · no streaming or download access."}</p><button className="rr-button" style={{ width: "100%", marginTop: 16 }} disabled={checkoutQuoteStatus === "loading"} onClick={() => { setCheckoutStep(2); setCheckoutErrors({}); }}>Add your details <ArrowRight size={14}/></button></aside></div> :
         <form className="rr-form" onSubmit={submitOrder} noValidate>
           <div className="rr-cart-layout"><div className="rr-cart-aside" style={{ background: "transparent" }}><h3>Contact and fulfillment</h3><div className="rr-form-grid">
             <label>Full name<input className="rr-input" value={checkoutData.name} onChange={(event) => setCheckoutData({ ...checkoutData, name: event.target.value })} autoComplete="name"/>{checkoutErrors.name && <span className="rr-error">{checkoutErrors.name}</span>}</label>
@@ -2277,14 +2449,14 @@ export function Reelroom() {
             {cart.some((item) => item.experience === "Physical") && <label>Physical order preference<select className="rr-select" value={checkoutData.fulfillment} onChange={(event) => setCheckoutData({ ...checkoutData, fulfillment: event.target.value })}><option>Delivery</option><option>Pickup</option></select></label>}
             {cart.some((item) => item.experience === "Physical") && checkoutData.fulfillment === "Delivery" && <label style={{ gridColumn: "1 / -1" }}>Delivery address in Kuwait<textarea className="rr-textarea" rows={3} value={checkoutData.address} onChange={(event) => setCheckoutData({ ...checkoutData, address: event.target.value })} placeholder="Area, block, street, building, apartment"/>{checkoutErrors.address && <span className="rr-error">{checkoutErrors.address}</span>}</label>}
           </div><label style={{ marginTop: 14 }}>Order note (optional)<textarea className="rr-textarea" rows={2} value={checkoutData.note} onChange={(event) => setCheckoutData({ ...checkoutData, note: event.target.value })} placeholder="Anything we should know?"/></label></div>
-          <aside className="rr-cart-aside"><h3>Order summary</h3><div className="rr-total-line"><span>Items</span><span>{cartCount}</span></div><div className="rr-total-line"><span>Payment</span><span>Not collected</span></div><div className="rr-total-line total"><span>Total</span><span>{money(cartTotal)}</span></div><p className="rr-demo-note" style={{ marginTop: 14 }}>{authUser ? "Confirming saves this demonstration order to your account. No payment is collected." : "Sign in to save this demo order to an account. No payment is collected."}</p><button className="rr-button" style={{ width: "100%", marginTop: 14 }} type="submit" disabled={orderSubmitting}>{orderSubmitting ? "Saving order…" : "Confirm demo order"} <Check size={14}/></button><button className="rr-text-link" type="button" onClick={() => setCheckoutStep(1)}><ArrowLeft size={13}/> Back to review</button></aside></div>
+          <aside className="rr-cart-aside"><h3>Order summary</h3><div className="rr-total-line"><span>Items</span><span>{cartCount}</span></div><div className="rr-total-line"><span>Payment</span><span>Stripe test mode</span></div><div className="rr-total-line total"><span>Total</span><span>{money(cartTotal)}</span></div><p className="rr-demo-note" style={{ marginTop: 14 }}>{authUser ? "Test card details are handled on Stripe Checkout. This will not charge real money or grant movie access." : "Sign in to continue. Stripe test checkout will not charge real money or grant movie access."}</p><button className="rr-button" style={{ width: "100%", marginTop: 14 }} type="submit" disabled={orderSubmitting || checkoutPaymentStatus === "verifying" || checkoutQuoteStatus === "loading"}>{orderSubmitting ? "Opening Stripe…" : "Continue to Stripe test checkout"} <ArrowRight size={14}/></button><button className="rr-text-link" type="button" onClick={() => setCheckoutStep(1)}><ArrowLeft size={13}/> Back to review</button></aside></div>
         </form>}
     </main>;
   };
 
   const renderLibrary = () => {
     const grouped = new Map<string, { movie: Movie; editions: Map<string, LibraryEdition> }>();
-    for (const order of [...orders, ...localOrders]) {
+    for (const order of [...orders.filter((entry) => entry.checkoutMode !== "test"), ...localOrders]) {
       for (const item of order.items) {
         const currentMovie = movieFor(item.movieId);
         const movie = item.movieTitleSnapshot
@@ -2334,15 +2506,15 @@ export function Reelroom() {
   const renderOrders = () => !authUser
     ? <main className="rr-wrap"><section className="rr-section"><div className="rr-empty"><h1>Sign in to view orders</h1><p>Your order history is private to your account.</p><button className="rr-button" onClick={() => openAuth("login", "orders")}>Sign in <ArrowRight size={14}/></button></div></section></main>
     : <main className="rr-wrap">
-      <div className="rr-page-head"><span className="rr-eyebrow">Your account</span><h1>Orders</h1><p>Demo orders saved to your account, with the selected options and prices recorded at checkout.</p></div>
+      <div className="rr-page-head"><span className="rr-eyebrow">Your account</span><h1>Orders</h1><p>Completed test-mode checkouts and older demonstration orders are recorded here. Test transactions do not charge money or grant movie access.</p></div>
       {localOrders.length > 0 && <p className="rr-demo-note">Older demonstration orders saved before sign-in remain on this device and appear in My Library, not in this account history.</p>}
       {accountStateError && <button className="rr-text-link" onClick={() => { setAccountStateError(""); setCatalogRetry((current) => current + 1); }}>Retry account sync <RotateCcw size={13}/></button>}
       {!accountDataHydratedFor || accountDataHydratedFor !== authUser.id
         ? <section className="rr-section"><div className="rr-empty" aria-live="polite">Loading your orders…</div></section>
         : orders.length === 0
-          ? <section className="rr-section"><div className="rr-empty"><ShoppingBag size={26}/><h2>No account orders yet.</h2><p>Your demo checkout confirmations will be saved here.</p><button className="rr-button" onClick={() => navigate("browse")}>Browse films <ArrowRight size={14}/></button></div></section>
+          ? <section className="rr-section"><div className="rr-empty"><ShoppingBag size={26}/><h2>No account orders yet.</h2><p>Completed test checkouts will appear here.</p><button className="rr-button" onClick={() => navigate("browse")}>Browse films <ArrowRight size={14}/></button></div></section>
           : <section className="rr-section"><div className="rr-order-list">{orders.map((order) => <article key={order.databaseId ?? order.id}>
-            <div className="rr-account-order-heading"><div><span className="rr-eyebrow">Demo order</span><h2>{order.id}</h2></div><span>{order.date}</span></div>
+            <div className="rr-account-order-heading"><div><span className="rr-eyebrow">{order.checkoutMode === "test" ? "Stripe test payment · no real charge" : "Older demo order"}</span><h2>{order.id}</h2></div><span>{order.date}</span></div>
             {order.items.map((item) => <div className="rr-order-row" key={item.key}>
               <span>{item.movieTitleSnapshot ?? movieFor(item.movieId).title} · {item.experience} {item.mode} · {item.option}<br/><small>Qty {item.quantity} · {item.mode === "Rent" ? item.rental : order.fulfillment}</small></span>
               <strong>{money(item.price * item.quantity)}</strong>
@@ -2392,7 +2564,7 @@ export function Reelroom() {
       {authMode === "login" && <div className="rr-auth-links"><button onClick={() => { setAuthMode("forgot"); setAuthError(""); setAuthNotice(""); }}>Forgot password?</button><span>New to REELROOM?</span><button onClick={() => { setAuthMode("signup"); setAuthError(""); setAuthNotice(""); }}>Create account</button></div>}
       {authMode === "signup" && <div className="rr-auth-links"><span>Already have an account?</span><button onClick={() => { setAuthMode("login"); setAuthError(""); setAuthNotice(""); }}>Sign in</button></div>}
       {(authMode === "forgot" || authMode === "reset") && <div className="rr-auth-links"><button onClick={() => { setAuthMode("login"); setAuthError(""); setAuthNotice(""); }}>Back to sign in</button></div>}
-      <p className="rr-auth-fineprint">Demo checkout only. No payment is taken and no movie access is provided.</p>
+      <p className="rr-auth-fineprint">Stripe test checkout only. No real money or movie access is provided.</p>
     </section>
   </main>;
 
@@ -2431,7 +2603,7 @@ export function Reelroom() {
     <div className="rr-footer-brand"><Logo onClick={() => navigate("home")}/><p>A curated cinema archive. Every film, your way. Made for movie lovers in Kuwait and wherever the credits roll.</p></div>
     <div className="rr-footer-col"><h4>Explore</h4><button onClick={() => navigate("browse")}>All movies</button><button onClick={() => navigate("movieNight")}>Plan a movie night</button><button onClick={() => navigate("physical")}>Physical cinema</button><button onClick={() => navigate("digital")}>Digital cinema</button><button onClick={() => navigate("watchlist")}>Watchlist</button></div>
     <div className="rr-footer-col"><h4>REELROOM</h4><button onClick={() => navigate("about")}>About & how it works</button><button onClick={() => navigate("contact")}>Contact</button><button onClick={() => navigate("ad")}>12-second brand reel</button><button onClick={() => navigate("library")}>My library</button></div>
-    <div className="rr-footer-col"><h4>A clear note</h4><p style={{ marginTop: 0 }}>This is a demonstration storefront. Prices and availability are examples. No payments or streaming rights are provided.</p><span style={{ color: "#00E054", fontSize: 10, display: "block", marginTop: 14 }}>Kuwait · KWD</span></div>
+    <div className="rr-footer-col"><h4>A clear note</h4><p style={{ marginTop: 0 }}>This is a demonstration storefront. Prices and availability are examples. Checkout uses Stripe test mode only; there are no real charges or streaming rights.</p><span style={{ color: "#00E054", fontSize: 10, display: "block", marginTop: 14 }}>Kuwait · KWD</span></div>
   </div><div className="rr-footer-bottom"><span>© 2025 REELROOM · Every Film. Your Way.</span><span>Original cinema, considered carefully.</span></div></div></footer>;
 
   const catalogLoadingView = <main className="rr-wrap rr-catalog-status" aria-busy="true">

@@ -65,6 +65,7 @@ export type AccountOrderRecord = {
   order_number: string;
   total_kwd: number | string;
   order_status: string;
+  checkout_mode: "demo" | "test" | "live";
   contact_name: string;
   contact_email: string;
   contact_phone: string;

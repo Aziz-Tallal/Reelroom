@@ -28,7 +28,15 @@ import type {
   HealthStatus,
   MovieNightErrorResponse,
   MovieNightPlanResponse,
-  MovieNightRequest
+  MovieNightRequest,
+  StripeCheckoutCancelResponse,
+  StripeCheckoutConfirmInput,
+  StripeCheckoutConfirmResponse,
+  StripeCheckoutErrorResponse,
+  StripeCheckoutInput,
+  StripeCheckoutQuoteInput,
+  StripeCheckoutQuoteResponse,
+  StripeCheckoutResponse
 } from './api.schemas';
 
 import { customFetch } from '../custom-fetch';
@@ -248,3 +256,357 @@ export const useCreateMovieNightPlan = <TError = ErrorType<MovieNightErrorRespon
       > => {
       return useMutation(getCreateMovieNightPlanMutationOptions(options), queryClient);
     }
+
+export const getCreateStripeCheckoutSessionUrl = () => {
+
+
+
+
+  return `/api/stripe/checkout/session`
+}
+
+/**
+ * @summary Create a Stripe Checkout Session
+ */
+export const createStripeCheckoutSession = async (stripeCheckoutInput: StripeCheckoutInput, options?: Parameters<typeof customFetch>[1]): Promise<StripeCheckoutResponse> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<StripeCheckoutResponse>(getCreateStripeCheckoutSessionUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(stripeCheckoutInput)
+  }
+);}
+
+
+
+
+
+export const getCreateStripeCheckoutSessionMutationKey = () => ['createStripeCheckoutSession'] as const;
+
+export const getCreateStripeCheckoutSessionMutationOptions = <TError = ErrorType<StripeCheckoutErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createStripeCheckoutSession>>, TError,CreateStripeCheckoutSessionMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createStripeCheckoutSession>>, TError,CreateStripeCheckoutSessionMutationVariables, TContext> => {
+
+const mutationKey = getCreateStripeCheckoutSessionMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createStripeCheckoutSession>>, CreateStripeCheckoutSessionMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  createStripeCheckoutSession(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateStripeCheckoutSessionMutationResult = NonNullable<Awaited<ReturnType<typeof createStripeCheckoutSession>>>
+    export type CreateStripeCheckoutSessionMutationBody = BodyType<StripeCheckoutInput>
+    export type CreateStripeCheckoutSessionMutationError = ErrorType<StripeCheckoutErrorResponse>
+    export type CreateStripeCheckoutSessionMutationVariables = {data: BodyType<StripeCheckoutInput>}
+
+    /**
+ * @summary Create a Stripe Checkout Session
+ */
+export const useCreateStripeCheckoutSession = <TError = ErrorType<StripeCheckoutErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createStripeCheckoutSession>>, TError,CreateStripeCheckoutSessionMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof createStripeCheckoutSession>>,
+        TError,
+        CreateStripeCheckoutSessionMutationVariables,
+        TContext
+      > => {
+      return useMutation(getCreateStripeCheckoutSessionMutationOptions(options), queryClient);
+    }
+
+export const getQuoteStripeCheckoutUrl = () => {
+
+
+
+
+  return `/api/stripe/checkout/quote`
+}
+
+/**
+ * @summary Quote a cart from Stripe prices
+ */
+export const quoteStripeCheckout = async (stripeCheckoutQuoteInput: StripeCheckoutQuoteInput, options?: Parameters<typeof customFetch>[1]): Promise<StripeCheckoutQuoteResponse> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<StripeCheckoutQuoteResponse>(getQuoteStripeCheckoutUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(stripeCheckoutQuoteInput)
+  }
+);}
+
+
+
+
+
+export const getQuoteStripeCheckoutMutationKey = () => ['quoteStripeCheckout'] as const;
+
+export const getQuoteStripeCheckoutMutationOptions = <TError = ErrorType<StripeCheckoutErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof quoteStripeCheckout>>, TError,QuoteStripeCheckoutMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof quoteStripeCheckout>>, TError,QuoteStripeCheckoutMutationVariables, TContext> => {
+
+const mutationKey = getQuoteStripeCheckoutMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof quoteStripeCheckout>>, QuoteStripeCheckoutMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  quoteStripeCheckout(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type QuoteStripeCheckoutMutationResult = NonNullable<Awaited<ReturnType<typeof quoteStripeCheckout>>>
+    export type QuoteStripeCheckoutMutationBody = BodyType<StripeCheckoutQuoteInput>
+    export type QuoteStripeCheckoutMutationError = ErrorType<StripeCheckoutErrorResponse>
+    export type QuoteStripeCheckoutMutationVariables = {data: BodyType<StripeCheckoutQuoteInput>}
+
+    /**
+ * @summary Quote a cart from Stripe prices
+ */
+export const useQuoteStripeCheckout = <TError = ErrorType<StripeCheckoutErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof quoteStripeCheckout>>, TError,QuoteStripeCheckoutMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof quoteStripeCheckout>>,
+        TError,
+        QuoteStripeCheckoutMutationVariables,
+        TContext
+      > => {
+      return useMutation(getQuoteStripeCheckoutMutationOptions(options), queryClient);
+    }
+
+export const getConfirmStripeCheckoutUrl = () => {
+
+
+
+
+  return `/api/stripe/checkout/confirm`
+}
+
+/**
+ * Confirms the payment with Stripe and returns its Supabase order snapshot.
+ * @summary Confirm a Stripe payment
+ */
+export const confirmStripeCheckout = async (stripeCheckoutConfirmInput: StripeCheckoutConfirmInput, options?: Parameters<typeof customFetch>[1]): Promise<StripeCheckoutConfirmResponse> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<StripeCheckoutConfirmResponse>(getConfirmStripeCheckoutUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(stripeCheckoutConfirmInput)
+  }
+);}
+
+
+
+
+
+export const getConfirmStripeCheckoutMutationKey = () => ['confirmStripeCheckout'] as const;
+
+export const getConfirmStripeCheckoutMutationOptions = <TError = ErrorType<StripeCheckoutErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof confirmStripeCheckout>>, TError,ConfirmStripeCheckoutMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof confirmStripeCheckout>>, TError,ConfirmStripeCheckoutMutationVariables, TContext> => {
+
+const mutationKey = getConfirmStripeCheckoutMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof confirmStripeCheckout>>, ConfirmStripeCheckoutMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  confirmStripeCheckout(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ConfirmStripeCheckoutMutationResult = NonNullable<Awaited<ReturnType<typeof confirmStripeCheckout>>>
+    export type ConfirmStripeCheckoutMutationBody = BodyType<StripeCheckoutConfirmInput>
+    export type ConfirmStripeCheckoutMutationError = ErrorType<StripeCheckoutErrorResponse>
+    export type ConfirmStripeCheckoutMutationVariables = {data: BodyType<StripeCheckoutConfirmInput>}
+
+    /**
+ * @summary Confirm a Stripe payment
+ */
+export const useConfirmStripeCheckout = <TError = ErrorType<StripeCheckoutErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof confirmStripeCheckout>>, TError,ConfirmStripeCheckoutMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof confirmStripeCheckout>>,
+        TError,
+        ConfirmStripeCheckoutMutationVariables,
+        TContext
+      > => {
+      return useMutation(getConfirmStripeCheckoutMutationOptions(options), queryClient);
+    }
+
+export const getCancelStripeCheckoutUrl = () => {
+
+
+
+
+  return `/api/stripe/checkout/cancel`
+}
+
+/**
+ * @summary Cancel an unfinished Stripe checkout
+ */
+export const cancelStripeCheckout = async (stripeCheckoutConfirmInput: StripeCheckoutConfirmInput, options?: Parameters<typeof customFetch>[1]): Promise<StripeCheckoutCancelResponse> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<StripeCheckoutCancelResponse>(getCancelStripeCheckoutUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(stripeCheckoutConfirmInput)
+  }
+);}
+
+
+
+
+
+export const getCancelStripeCheckoutMutationKey = () => ['cancelStripeCheckout'] as const;
+
+export const getCancelStripeCheckoutMutationOptions = <TError = ErrorType<StripeCheckoutErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof cancelStripeCheckout>>, TError,CancelStripeCheckoutMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof cancelStripeCheckout>>, TError,CancelStripeCheckoutMutationVariables, TContext> => {
+
+const mutationKey = getCancelStripeCheckoutMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof cancelStripeCheckout>>, CancelStripeCheckoutMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  cancelStripeCheckout(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CancelStripeCheckoutMutationResult = NonNullable<Awaited<ReturnType<typeof cancelStripeCheckout>>>
+    export type CancelStripeCheckoutMutationBody = BodyType<StripeCheckoutConfirmInput>
+    export type CancelStripeCheckoutMutationError = ErrorType<StripeCheckoutErrorResponse>
+    export type CancelStripeCheckoutMutationVariables = {data: BodyType<StripeCheckoutConfirmInput>}
+
+    /**
+ * @summary Cancel an unfinished Stripe checkout
+ */
+export const useCancelStripeCheckout = <TError = ErrorType<StripeCheckoutErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof cancelStripeCheckout>>, TError,CancelStripeCheckoutMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof cancelStripeCheckout>>,
+        TError,
+        CancelStripeCheckoutMutationVariables,
+        TContext
+      > => {
+      return useMutation(getCancelStripeCheckoutMutationOptions(options), queryClient);
+    }
+
