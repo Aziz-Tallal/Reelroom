@@ -1,1 +1,2 @@
 - [REELROOM Supabase signup](supabase-email-confirmation.md) — Use email/password with confirmation disabled; Supabase Auth owns credentials and profiles store display names.
+- [REELROOM checkout currency](reelroom-checkout-currency.md) — Keep catalog and Stripe checkout in KWD; don't silently convert prices.
